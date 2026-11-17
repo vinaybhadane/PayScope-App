@@ -1,0 +1,8 @@
+# Copy to firebase.local.properties and use a Firebase-only restricted Android key.
+# Or generate the local file with scripts/configure_firebase.py.
+PAYSCOPE_FIREBASE_API_KEY=
+PAYSCOPE_FIREBASE_APP_ID=
+PAYSCOPE_FIREBASE_PROJECT_ID=
+PAYSCOPE_FIREBASE_STORAGE_BUCKET=
+PAYSCOPE_FIREBASE_SENDER_ID=
+PAYSCOPE_GOOGLE_WEB_CLIENT_ID=

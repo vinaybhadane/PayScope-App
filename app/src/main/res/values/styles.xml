@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Base.Theme.PayScope" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/payscope_splash</item>
+        <item name="android:statusBarColor">#040711</item>
+        <item name="android:navigationBarColor">#040711</item>
+        <item name="android:colorAccent">#FF5500</item>
+    </style>
+    <style name="Theme.PayScope" parent="Base.Theme.PayScope" />
+</resources>
