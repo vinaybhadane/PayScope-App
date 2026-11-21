@@ -28,6 +28,7 @@ class DataStoreManager @Inject constructor(
         val KEY_IS_GUEST = booleanPreferencesKey("is_guest")
         val KEY_HAS_UPLOADED_STATEMENTS = booleanPreferencesKey("has_uploaded_statements")
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode") // "dark", "light", "system"
+        val KEY_THEME_INITIALIZED_V3 = booleanPreferencesKey("theme_initialized_v3")
     }
 
     val workspaceIdFlow: Flow<String?> = context.dataStore.data.map { it[KEY_WORKSPACE_ID] }
@@ -37,7 +38,16 @@ class DataStoreManager @Inject constructor(
     val userNameFlow: Flow<String> = context.dataStore.data.map { it[KEY_USER_NAME] ?: "Your workspace" }
     val userPhotoUrlFlow: Flow<String?> = context.dataStore.data.map { it[KEY_USER_PHOTO_URL] }
     val hasUploadedStatementsFlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_HAS_UPLOADED_STATEMENTS] ?: false }
-    val themeModeFlow: Flow<String> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: "dark" }
+    val themeModeFlow: Flow<String> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: "light" }
+
+    suspend fun ensureDefaultLightTheme() {
+        context.dataStore.edit { prefs ->
+            if (prefs[KEY_THEME_INITIALIZED_V3] != true) {
+                prefs[KEY_THEME_INITIALIZED_V3] = true
+                prefs[KEY_THEME_MODE] = "light"
+            }
+        }
+    }
 
     suspend fun saveSession(
         token: String,

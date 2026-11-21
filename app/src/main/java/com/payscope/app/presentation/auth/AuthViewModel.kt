@@ -55,7 +55,8 @@ class AuthViewModel @Inject constructor(
     }
 
     companion object {
-        const val DEBUG_SHA1 = "E0:09:D9:D7:1D:E8:68:76:33:C7:09:BE:FD:90:55:07:64:D0:20:FA"
+        const val DEBUG_SHA1 = "C1:77:B3:FB:E4:A5:98:F2:FF:44:BC:54:02:5E:96:4F:F1:95:3F:8A"
+        const val DEBUG_SHA256 = "8A:F7:A2:D1:45:19:0F:12:20:2A:8B:66:C8:46:34:22:93:D9:8C:BF:CD:88:F1:34:63:BC:83:58:28:C4:AC:85"
     }
 
     /**
@@ -167,7 +168,7 @@ class AuthViewModel @Inject constructor(
                 }
 
                 val errorDetail = when (e.statusCode) {
-                    10 -> "Google Sign-In error (Developer Error 10). Add SHA-1 fingerprint ($DEBUG_SHA1) to Firebase Console > Project Settings > Android App (com.payscope.app)."
+                    10 -> "Google Sign-In error (Developer Error 10). Ensure SHA-1 ($DEBUG_SHA1) is added in Firebase Console > Project Settings > Android App (com.payscope.app). If newly added, wait 2-5 minutes for Google's servers to sync."
                     12500 -> "Google Play Services authentication failed (12500). Please verify network and Google Play Services."
                     GoogleSignInStatusCodes.NETWORK_ERROR -> "Network error during Google Sign-In. Check your internet connection."
                     else -> "Google Sign-In failed (${e.statusCode}): ${e.localizedMessage ?: "Unknown error"}"

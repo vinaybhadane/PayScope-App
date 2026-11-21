@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-val LocalIsDarkTheme = staticCompositionLocalOf { true }
+val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryOrange,
@@ -63,7 +63,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun PayScopeTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

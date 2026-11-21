@@ -36,7 +36,7 @@ data class ProfileUiState(
     val statementsCount: Int = 0,
     val activeSubscriptionsCount: Int = 0,
     val currency: String = "INR (₹)",
-    val themeMode: String = "dark",
+    val themeMode: String = "light",
     val statementHistory: List<BankStatementItem> = emptyList(),
     val errorMessage: String? = null,
     val exportPdfFile: File? = null,

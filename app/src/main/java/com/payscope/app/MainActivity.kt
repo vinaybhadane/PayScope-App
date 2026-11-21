@@ -21,15 +21,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val initialTheme = kotlinx.coroutines.runBlocking {
+            dataStoreManager.ensureDefaultLightTheme()
             dataStoreManager.themeModeFlow.first()
         }
         setContent {
             val systemDark = isSystemInDarkTheme()
             val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = initialTheme)
             val darkTheme = when (themeMode) {
-                "light" -> false
+                "dark" -> true
                 "system" -> systemDark
-                else -> true
+                else -> false // Light theme is default
             }
 
             PayScopeTheme(darkTheme = darkTheme) {
