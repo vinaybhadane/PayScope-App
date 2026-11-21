@@ -10,6 +10,8 @@ import androidx.activity.enableEdgeToEdge
 import com.payscope.app.core.theme.PayScopeTheme
 import com.payscope.app.presentation.navigation.PayScopeNavGraph
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -20,26 +22,32 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val initialTheme = kotlinx.coroutines.runBlocking {
-            dataStoreManager.ensureDefaultLightTheme()
-            dataStoreManager.themeModeFlow.first()
+        var readyToDraw = false
+        val rootView = findViewById<android.view.View>(android.R.id.content)
+        val preDraw = object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (readyToDraw) rootView.viewTreeObserver.removeOnPreDrawListener(this)
+                return readyToDraw
+            }
         }
-        setContent {
-            val systemDark = isSystemInDarkTheme()
-            val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = initialTheme)
-            val darkTheme = when (themeMode) {
-                "dark" -> true
-                "system" -> systemDark
-                else -> false // Light theme is default
-            }
-
-            PayScopeTheme(darkTheme = darkTheme) {
-                var initialRoute by remember { mutableStateOf<String?>(null) }
-                LaunchedEffect(Unit) {
-                    initialRoute = if (authRepository.currentSessionFlow.first() != null) "main" else "welcome"
+        rootView.viewTreeObserver.addOnPreDrawListener(preDraw)
+        lifecycleScope.launch {
+            dataStoreManager.ensureDefaultLightTheme()
+            val initialTheme = dataStoreManager.themeModeFlow.first()
+            val initialRoute = if (authRepository.currentSessionFlow.first() != null) "main" else "welcome"
+            setContent {
+                val systemDark = isSystemInDarkTheme()
+                val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = initialTheme)
+                val darkTheme = when (themeMode) {
+                    "dark" -> true
+                    "system" -> systemDark
+                    else -> false
                 }
-                initialRoute?.let { PayScopeNavGraph(startDestination = it) }
+                PayScopeTheme(darkTheme = darkTheme) {
+                    PayScopeNavGraph(startDestination = initialRoute)
+                }
             }
+            readyToDraw = true
         }
     }
 }

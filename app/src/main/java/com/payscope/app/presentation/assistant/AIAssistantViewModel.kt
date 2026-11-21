@@ -40,7 +40,7 @@ class AIAssistantViewModel @Inject constructor(
         // Welcome message
         val welcomeMsg = ChatMessage(
             id = "welcome",
-            content = "Hello! I am your PayScope Financial Assistant. I can analyze your spending trends, identify price creep, calculate savings opportunities, or guide you through mandate cancellations. What would you like to explore?",
+            content = "Hi! Ask me about your spending, subscriptions, price changes, or ways to save. I will use the records in your workspace.",
             isUser = false,
             timestamp = timeFormat.format(Date()),
             suggestions = _uiState.value.suggestedPrompts

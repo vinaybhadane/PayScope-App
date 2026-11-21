@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -71,7 +76,7 @@ fun AIAssistantDialog(
     viewModel: AIAssistantViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var inputText by remember { mutableStateOf("") }
+    var inputText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     LaunchedEffect(uiState.messages.size) {
@@ -80,11 +85,16 @@ fun AIAssistantDialog(
         }
     }
 
-    BasicAlertDialog(onDismissRequest = onDismiss) {
+    val availableHeight = (LocalConfiguration.current.screenHeightDp * .82f).dp
+    BasicAlertDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
             modifier = Modifier
+                .widthIn(max = 560.dp)
                 .fillMaxWidth()
-                .height(580.dp)
+                .padding(horizontal = 20.dp)
+                .imePadding()
+                .heightIn(max = availableHeight)
+                .height(620.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(CardSurface)
                 .border(1.dp, BorderSubtle, RoundedCornerShape(28.dp))
@@ -99,18 +109,18 @@ fun AIAssistantDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         com.payscope.app.core.components.PayScopeLogo(size = 40.dp)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "PayScope AI Assistant",
+                                text = "PayScope AI",
                                 color = TextPrimary,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Grounded in workspace evidence",
+                                text = "Your money, explained",
                                 color = SecondaryCyan,
                                 fontSize = 11.sp
                             )
@@ -221,6 +231,7 @@ fun AIAssistantDialog(
                     ) {
                         BasicTextField(
                             value = inputText,
+                            singleLine = true,
                             onValueChange = { inputText = it },
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(color = TextPrimary, fontSize = 13.sp),
@@ -228,7 +239,9 @@ fun AIAssistantDialog(
                             decorationBox = { inner ->
                                 if (inputText.isEmpty()) {
                                     Text(
-                                        text = "Ask about subscriptions, savings...",
+                                        text = "Ask about your money...",
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                         color = TextMuted,
                                         fontSize = 13.sp
                                     )
@@ -247,15 +260,16 @@ fun AIAssistantDialog(
                                 inputText = ""
                             }
                         },
+                        enabled = inputText.isNotBlank() && !uiState.isTyping,
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(PrimaryOrange)
+                            .background(if (inputText.isNotBlank() && !uiState.isTyping) PrimaryOrange else ElevatedCardSurface)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send",
-                            tint = Color.White,
+                            tint = if (inputText.isNotBlank() && !uiState.isTyping) com.payscope.app.core.theme.DarkDeepBackground else TextMuted,
                             modifier = Modifier.size(18.dp)
                         )
                     }

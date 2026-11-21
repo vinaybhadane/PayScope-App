@@ -1,5 +1,6 @@
 package com.payscope.app.presentation.savings
 
+import com.payscope.app.core.util.formatMoney
 import com.payscope.app.core.util.drawAmbientGlow
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -84,7 +85,7 @@ fun SavingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.loadData() }
-    var newPlanName by remember { mutableStateOf("") }
+    var newPlanName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -111,43 +112,17 @@ fun SavingsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp)
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 uiState.errorMessage?.let { message -> item {
                     com.payscope.app.core.components.StatusMessage(message) { viewModel.loadData() }
                 } }
                 // Header
                 item {
-                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (onNavigateBack != null) {
-                                IconButton(onClick = onNavigateBack) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = TextPrimary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
-                            } else {
-                                com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
-                                Spacer(modifier = Modifier.width(12.dp))
-                            }
-                            Column {
-                                Text(
-                                    text = "Live Savings Calculator",
-                                    color = TextPrimary,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Interactive What-If budget cut simulator",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
+                    com.payscope.app.core.components.ScreenHeading(
+                        "Savings simulator", "Explore a lighter subscription budget",
+                        Modifier.padding(horizontal = 20.dp), onBack = onNavigateBack
+                    )
                 }
 
                 item {
@@ -190,7 +165,7 @@ fun SavingsScreen(
                                 Column {
                                     Text(text = "Baseline estimate", color = TextMuted, fontSize = 11.sp)
                                     Text(
-                                        text = "₹${uiState.calculation.baselineAnnualCost.toInt()}",
+                                        text = formatMoney(uiState.calculation.baselineAnnualCost),
                                         color = TextPrimary,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
@@ -207,7 +182,7 @@ fun SavingsScreen(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = "₹${uiState.calculation.selectedAnnualSavings.toInt()}",
+                                        text = formatMoney(uiState.calculation.selectedAnnualSavings),
                                         color = SavingsTeal,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
@@ -219,7 +194,7 @@ fun SavingsScreen(
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(text = "After selection", color = SecondaryCyan, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                     Text(
-                                        text = "₹${uiState.calculation.projectedAnnualCost.toInt()}",
+                                        text = formatMoney(uiState.calculation.projectedAnnualCost),
                                         color = SecondaryCyan,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
@@ -447,13 +422,13 @@ private fun SavingsOpportunityCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "Save ₹${commitment.annualizedAmount.toInt()}/yr",
+                    text = "Save ${formatMoney(commitment.annualizedAmount)}/yr",
                     color = SavingsTeal,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "₹${commitment.normalizedMonthlyAmount.toInt()}/mo",
+                    text = "${formatMoney(commitment.normalizedMonthlyAmount)}/mo",
                     color = TextMuted,
                     fontSize = 11.sp
                 )
@@ -515,7 +490,7 @@ private fun SavedPlanRow(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Save ₹${plan.annualSavings.toInt()}/yr",
+                text = "Save ${formatMoney(plan.annualSavings)}/yr",
                 color = SavingsTeal,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold

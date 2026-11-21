@@ -1,5 +1,8 @@
 package com.payscope.app.presentation.search
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.payscope.app.core.util.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,10 +70,7 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-
-    val inrFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply {
-        maximumFractionDigits = 0
-    }
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.loadData() }
 
     val filters = listOf("All", "Subscriptions", "Transactions")
 
@@ -94,9 +94,15 @@ fun SearchScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 120.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                com.payscope.app.core.components.ScreenHeading("Search", "Find a service, merchant, or transaction")
+            }
+            state.errorMessage?.let { message -> item {
+                com.payscope.app.core.components.StatusMessage(message) { viewModel.loadData() }
+            } }
             // Search Input Header
             item {
                 Row(
@@ -154,7 +160,7 @@ fun SearchScreen(
 
             // Filter Chips
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     filters.forEach { filter ->
                         val isSelected = state.selectedFilter == filter
                         Box(
@@ -171,7 +177,7 @@ fun SearchScreen(
                         ) {
                             Text(
                                 text = filter,
-                                color = if (isSelected) TextPrimary else TextSecondary,
+                                color = if (isSelected) com.payscope.app.core.theme.DarkDeepBackground else TextSecondary,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
@@ -242,7 +248,7 @@ fun SearchScreen(
                                 }
 
                                 Text(
-                                    text = inrFormatter.format(item.amount.toLong()),
+                                    text = formatMoney(item.amount, item.currency),
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -301,7 +307,7 @@ fun SearchScreen(
                             }
 
                             Text(
-                                text = (if (tx.direction == "credit") "+" else "-") + inrFormatter.format(tx.amount.toLong()),
+                                text = (if (tx.direction == "credit") "+" else "-") + formatMoney(tx.amount, tx.currency),
                                 color = if (tx.direction == "credit") SavingsTeal else TextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold

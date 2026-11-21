@@ -29,6 +29,7 @@ sealed interface DashboardEvent {
 
 data class DashboardUiState(
     val isLoading: Boolean = true,
+    val hasLoaded: Boolean = false,
     val errorMessage: String? = null,
     val isGuestDemo: Boolean = false,
     val userName: String = "Your workspace",
@@ -58,8 +59,11 @@ class DashboardViewModel @Inject constructor(
     val events: SharedFlow<DashboardEvent> = _events.asSharedFlow()
 
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     fun loadDashboardData(forceRefresh: Boolean = false) {
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
 
             val isGuest = dataStoreManager.isGuestFlow.first()
@@ -79,6 +83,7 @@ class DashboardViewModel @Inject constructor(
 
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
+                hasLoaded = true,
                 isGuestDemo = isGuest,
                 userName = userName,
                 hasUploadedStatements = activity.transactionCount > 0 || activity.statementCount > 0,

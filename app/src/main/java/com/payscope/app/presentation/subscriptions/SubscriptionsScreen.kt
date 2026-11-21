@@ -1,5 +1,6 @@
 package com.payscope.app.presentation.subscriptions
 
+import com.payscope.app.core.util.formatMoney
 import com.payscope.app.core.util.drawAmbientGlow
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -7,6 +8,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +91,7 @@ import com.payscope.app.presentation.cancellations.CancellationAssistantDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubscriptionsScreen(
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: SubscriptionsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -119,32 +124,17 @@ fun SubscriptionsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp)
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 uiState.errorMessage?.let { message -> item {
                     com.payscope.app.core.components.StatusMessage(message) { viewModel.loadSubscriptions() }
                 } }
                 // Header
                 item {
-                    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Subscriptions Directory",
-                                    color = TextPrimary,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${uiState.filteredCommitments.size} services to review",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
+                    com.payscope.app.core.components.ScreenHeading(
+                        "Subscriptions", "${uiState.filteredCommitments.size} services to review",
+                        Modifier.padding(horizontal = 20.dp), onBack = onNavigateBack
+                    )
                 }
 
                 // Search Bar
@@ -169,6 +159,7 @@ fun SubscriptionsScreen(
                             BasicTextField(
                                 value = uiState.searchQuery,
                                 onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
                                 cursorBrush = SolidColor(PrimaryOrange),
@@ -213,7 +204,7 @@ fun SubscriptionsScreen(
                             ) {
                                 Text(
                                     text = filter.label,
-                                    color = if (isSelected) Color.White else TextSecondary,
+                                    color = if (isSelected) com.payscope.app.core.theme.DarkDeepBackground else TextSecondary,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -296,6 +287,7 @@ fun SubscriptionsScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SubscriptionDirectoryCard(
     commitment: CommitmentItem,
@@ -351,7 +343,7 @@ private fun SubscriptionDirectoryCard(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "₹${commitment.amount.toInt()}",
+                    text = formatMoney(commitment.amount, commitment.currency),
                     color = TextPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
@@ -372,134 +364,38 @@ private fun SubscriptionDirectoryCard(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Middle Row: Certainty Tag + Hike Pill + Renewal Due Date
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(
-                modifier = Modifier.weight(1f, fill = false),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Certainty Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(SavingsTeal.copy(alpha = 0.14f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = if (commitment.status == "Confirmed") "Payment evidence reviewed" else "Limited billing history",
-                        color = SavingsTeal,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-
-                // Price Hike Pill if applicable
-                if (commitment.hasPriceHike) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(WarningAmber.copy(alpha = 0.16f))
-                            .padding(horizontal = 7.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = "+${commitment.priceHikePercentage?.toInt()}% Hike",
-                            color = WarningAmber,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-
             Text(
-                text = if (commitment.nextBillingDate.isBlank()) "Billing cycle unconfirmed" else "Estimated ${commitment.nextBillingDate}",
-                color = TextMuted,
-                fontSize = 11.sp,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.padding(start = 8.dp)
+                if (commitment.status == "Confirmed") "Evidence reviewed" else "Limited billing history",
+                color = SavingsTeal, fontSize = 11.sp,
+                modifier = Modifier.background(SavingsTeal.copy(alpha = .10f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
+            )
+            if (commitment.hasPriceHike) Text(
+                "${commitment.priceHikePercentage?.toInt() ?: 0}% price increase",
+                color = WarningAmber, fontSize = 11.sp,
+                modifier = Modifier.background(WarningAmber.copy(alpha = .10f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
             )
         }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Actions Row: Status Tag + Action Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Text(
+            if (commitment.nextBillingDate.isBlank()) "Billing cycle unconfirmed" else "Estimated renewal ${commitment.nextBillingDate}",
+            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp)
+        )
+        Spacer(Modifier.height(6.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Status tag
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        when (commitment.status.lowercase()) {
-                            "confirmed" -> SavingsTeal.copy(alpha = 0.15f)
-                            "needs review" -> WarningAmber.copy(alpha = 0.15f)
-                            else -> ElevatedCardSurface
-                        }
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = commitment.status,
-                    color = when (commitment.status.lowercase()) {
-                        "confirmed" -> SavingsTeal
-                        "needs review" -> WarningAmber
-                        else -> TextSecondary
-                    },
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Cancel guide shortcut
-                Text(
-                    text = "Cancel Guide",
-                    color = DangerRose,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(DangerRose.copy(alpha = 0.12f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onStartCancellation
-                        )
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                )
-
-                if (commitment.status.lowercase() != "confirmed") {
-                    Text(
-                        text = "Confirm",
-                        color = SavingsTeal,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SavingsTeal.copy(alpha = 0.12f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = onConfirm
-                            )
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
+            Text(commitment.status, color = if (commitment.status == "Confirmed") SavingsTeal else TextSecondary,
+                fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(vertical = 15.dp, horizontal = 2.dp))
+            TextButton(onClick = onStartCancellation) { Text("Cancel guide", color = DangerRose, fontSize = 12.sp) }
+            if (commitment.status != "Confirmed") {
+                TextButton(onClick = onConfirm) { Text("Confirm", color = SavingsTeal, fontSize = 12.sp) }
             }
         }
     }
@@ -534,7 +430,7 @@ private fun SubscriptionDetailsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         BrandLogoView(
                             logoKey = commitment.logoKey,
                             merchantName = commitment.merchantName,
@@ -585,15 +481,15 @@ private fun SubscriptionDetailsDialog(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = "Per Billing", color = TextMuted, fontSize = 11.sp)
-                        Text(text = "₹${commitment.amount.toInt()}", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(text = formatMoney(commitment.amount, commitment.currency), color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = "Monthly Run-Rate", color = TextMuted, fontSize = 11.sp)
-                        Text(text = "₹${commitment.normalizedMonthlyAmount.toInt()}", color = SecondaryCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(text = formatMoney(commitment.normalizedMonthlyAmount, commitment.currency), color = SecondaryCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = "Annual Total", color = TextMuted, fontSize = 11.sp)
-                        Text(text = "₹${(commitment.normalizedMonthlyAmount * 12).toInt()}", color = PrimaryOrange, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(text = formatMoney((commitment.normalizedMonthlyAmount * 12), commitment.currency), color = PrimaryOrange, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -640,7 +536,7 @@ private fun SubscriptionDetailsDialog(
                                 Text(text = debit.date, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                 Text(text = debit.descriptor, color = TextMuted, fontSize = 10.sp, maxLines = 1)
                             }
-                            Text(text = "₹${debit.amount.toInt()}", color = PrimaryOrange, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(text = formatMoney(debit.amount, commitment.currency), color = PrimaryOrange, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -682,7 +578,7 @@ private fun EditSubscriptionDialog(
     var name by remember { mutableStateOf(commitment.name) }
     var category by remember { mutableStateOf(commitment.category) }
     var cadence by remember { mutableStateOf(commitment.cadence) }
-    var amountText by remember { mutableStateOf(commitment.amount.toInt().toString()) }
+    var amountText by remember { mutableStateOf(commitment.amount.toString()) }
 
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Box(

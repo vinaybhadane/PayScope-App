@@ -1,5 +1,6 @@
 package com.payscope.app.presentation.analytics
 
+import com.payscope.app.core.util.formatMoney
 import com.payscope.app.core.util.drawAmbientGlow
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -109,41 +110,10 @@ fun AnalyticsScreen(
             .statusBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Screen Header: Dedicated financial spending intelligence (Requirement 6: Graph moved to dedicated Home feature)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onNavigateBack != null) {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = TextPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                } else {
-                    com.payscope.app.core.components.PayScopeLogo(size = 40.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Spending Intelligence",
-                        color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Statement spending trends & patterns",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-            }
+            com.payscope.app.core.components.ScreenHeading(
+                "Spending insights", "Understand where your money goes",
+                Modifier.padding(horizontal = 20.dp), onBack = onNavigateBack
+            )
 
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -152,7 +122,7 @@ fun AnalyticsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 120.dp)
+                    contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     uiState.errorMessage?.let { message -> item {
                         com.payscope.app.core.components.StatusMessage(message) { viewModel.reload() }
@@ -181,7 +151,7 @@ fun AnalyticsScreen(
                             ) {
                                 Text(
                                     text = filter.label,
-                                    color = if (isSelected) Color.White else TextSecondary,
+                                    color = if (isSelected) com.payscope.app.core.theme.DarkDeepBackground else TextSecondary,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -205,14 +175,14 @@ fun AnalyticsScreen(
                         ) {
                             MetricCard(
                                 title = "Observed spending",
-                                amount = "₹${uiState.statement.totalDebits.toInt()}",
+                                amount = formatMoney(uiState.statement.totalDebits),
                                 subtitle = "Imported INR debits",
                                 accentColor = PrimaryOrange,
                                 modifier = Modifier.weight(1f)
                             )
                             MetricCard(
                                 title = "Monthly average",
-                                amount = "₹${uiState.statement.monthlyAverage.toInt()}",
+                                amount = formatMoney(uiState.statement.monthlyAverage),
                                 subtitle = "Across observed statement months",
                                 accentColor = SecondaryCyan,
                                 modifier = Modifier.weight(1f)
@@ -225,14 +195,14 @@ fun AnalyticsScreen(
                         ) {
                             MetricCard(
                                 title = "Confirmed recurring",
-                                amount = "₹${uiState.summary.monthlyRecurringSpend.toInt()}",
+                                amount = formatMoney(uiState.summary.monthlyRecurringSpend),
                                 subtitle = "${uiState.summary.activeSubscriptionsCount} confirmed subscriptions / month",
                                 accentColor = TextSecondary,
                                 modifier = Modifier.weight(1f)
                             )
                             MetricCard(
                                 title = "Potential service costs",
-                                amount = "₹${uiState.potentialMonthlyEstimate.toInt()}/mo",
+                                amount = "${formatMoney(uiState.potentialMonthlyEstimate)}/mo",
                                 subtitle = "${uiState.potentialCount} estimates; confirm in Subs",
                                 accentColor = SavingsTeal,
                                 modifier = Modifier.weight(1f)
@@ -323,7 +293,7 @@ fun AnalyticsScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            val maxSpend = uiState.topMerchants.maxOfOrNull { it.annualSpend } ?: 1.0
+                            val maxSpend = (uiState.topMerchants.maxOfOrNull { it.annualSpend } ?: 1.0).coerceAtLeast(1.0)
 
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 uiState.topMerchants.forEach { merchant ->
@@ -356,13 +326,13 @@ fun AnalyticsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column {
+                                Column(Modifier.weight(1f).padding(end = 10.dp)) {
                                     Text(text = "Observed statement spending", color = TextMuted, fontSize = 12.sp)
-                                    Text(text = "₹${uiState.statement.totalDebits.toInt()}", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = formatMoney(uiState.statement.totalDebits), color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                                     Text(text = "Confirmed monthly recurring", color = TextMuted, fontSize = 12.sp)
-                                    Text(text = "₹${uiState.summary.monthlyRecurringSpend.toInt()}", color = SecondaryCyan, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = formatMoney(uiState.summary.monthlyRecurringSpend), color = SecondaryCyan, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -411,9 +381,9 @@ private fun MetricCard(
 @Composable
 private fun MerchantSpendRow(merchant: MerchantComparison, maxSpend: Double) {
     val progress = remember { Animatable(0f) }
-    LaunchedEffect(merchant) {
+    LaunchedEffect(merchant, maxSpend) {
         progress.animateTo(
-            targetValue = (merchant.annualSpend / maxSpend).toFloat(),
+            targetValue = (merchant.annualSpend / maxSpend).toFloat().coerceIn(0f, 1f),
             animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
         )
     }
@@ -424,7 +394,7 @@ private fun MerchantSpendRow(merchant: MerchantComparison, maxSpend: Double) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 BrandLogoView(
                     logoKey = merchant.logoKey,
                     merchantName = merchant.merchantName,
@@ -433,6 +403,7 @@ private fun MerchantSpendRow(merchant: MerchantComparison, maxSpend: Double) {
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "${merchant.rank}. ${merchant.merchantName}",
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     color = TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
@@ -440,7 +411,7 @@ private fun MerchantSpendRow(merchant: MerchantComparison, maxSpend: Double) {
             }
 
             Text(
-                text = "₹${merchant.annualSpend.toInt()}",
+                text = formatMoney(merchant.annualSpend),
                 color = SecondaryCyan,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold

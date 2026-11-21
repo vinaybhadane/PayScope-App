@@ -1,5 +1,6 @@
 package com.payscope.app.core.components
 
+import com.payscope.app.core.util.formatMoney
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -230,7 +231,7 @@ fun CategoryDistributionView(
                     }
 
                     Text(
-                        text = "₹${cat.amount.toInt()} (${cat.percentage}%)",
+                        text = "${formatMoney(cat.amount)} (${cat.percentage}%)",
                         color = TextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold

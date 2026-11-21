@@ -37,6 +37,7 @@ class AlertsViewModel @Inject constructor(
     }
 
     fun loadAlerts(forceRefresh: Boolean = false) {
+        if (_uiState.value.isLoading) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
@@ -72,6 +73,7 @@ class AlertsViewModel @Inject constructor(
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
                 statementRepository.retryAnalysis()
+                _uiState.value = _uiState.value.copy(isLoading = false)
                 loadAlerts(forceRefresh = true)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e

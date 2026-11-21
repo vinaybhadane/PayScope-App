@@ -30,8 +30,7 @@ import com.payscope.app.core.theme.*
 import java.text.NumberFormat
 import java.util.Locale
 
-private fun money(amount: Double): String = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-    .apply { maximumFractionDigits = 0 }.format(amount)
+private fun money(amount: Double): String = com.payscope.app.core.util.formatMoney(amount)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +45,7 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    var showAllTransactions by remember { mutableStateOf(false) }
+    var showAllTransactions by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadDashboardData()
@@ -70,13 +69,13 @@ fun DashboardScreen(
             .statusBarsPadding()
     ) {
         PullToRefreshBox(
-            isRefreshing = state.isLoading,
+            isRefreshing = state.isLoading && state.hasLoaded,
             onRefresh = { viewModel.loadDashboardData(forceRefresh = true) },
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 // 1. Header: Profile Avatar at top-left & Personalized Welcome Heading (Addendum 03 - Req 2)
@@ -111,26 +110,29 @@ fun DashboardScreen(
                             Text(
                                 text = if (state.isGuestDemo) "Sample workspace" else "YOUR MONEY, IN FOCUS",
                                 color = TextMuted,
-                                fontSize = 9.sp,
+                                fontSize = 12.sp,
                                 letterSpacing = 1.2.sp
                             )
                             Text(
                                 text = welcomeHeading,
                                 color = TextPrimary,
-                                fontSize = 20.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.4).sp,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
 
+                if (state.isLoading && !state.hasLoaded) {
+                    item { ScreenLoading("Loading your workspace...") }
+                } else {
                 // 2. Monthly Recurring Spend Card (Theme-specific: Darker Cyan in Light, Orange in Dark, Sharper Edges)
                 item {
-                    val cardBg = if (isDark) Color(0xFF1B140E) else Color(0xFFD3EEF9)
-                    val cardBorder = if (isDark) PrimaryOrange.copy(alpha = 0.45f) else Color(0xFF0284C7).copy(alpha = 0.55f)
+                    val cardBg = if (isDark) Color(0xFF1B140E) else Color(0xFFDDF1F8)
+                    val cardBorder = if (isDark) PrimaryOrange.copy(alpha = 0.20f) else Color(0xFF0284C7).copy(alpha = 0.18f)
                     val cardGlow = if (isDark) GlowOrange else GlowCyan
                     val accentColor = if (isDark) PrimaryOrange else Color(0xFF0369A1)
 
@@ -161,7 +163,7 @@ fun DashboardScreen(
                                 Text(
                                     text = "${state.summary.activeSubscriptionsCount} active",
                                     color = accentColor,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -170,7 +172,7 @@ fun DashboardScreen(
                         Text(
                             text = money(state.summary.monthlyRecurringSpend),
                             color = TextPrimary,
-                            fontSize = 36.sp,
+                            fontSize = 42.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-1.2).sp,
                             modifier = Modifier.padding(top = 8.dp)
@@ -179,7 +181,7 @@ fun DashboardScreen(
                         Text(
                             text = if (state.isGuestDemo) "Sample recurring commitments" else "INR commitments",
                             color = TextMuted,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
 
@@ -187,7 +189,7 @@ fun DashboardScreen(
 
                         Row(Modifier.fillMaxWidth()) {
                             Column(Modifier.weight(1f)) {
-                                Text("Annualized cost", color = TextMuted, fontSize = 11.sp)
+                                Text("Annualized cost", color = TextMuted, fontSize = 12.sp)
                                 Text(
                                     text = money(state.summary.annualizedSpend),
                                     color = TextPrimary,
@@ -197,7 +199,7 @@ fun DashboardScreen(
                                 )
                             }
                             Column(Modifier.weight(1f)) {
-                                Text("Savings scenarios / yr", color = TextMuted, fontSize = 11.sp)
+                                Text("Potential savings / yr", color = TextMuted, fontSize = 12.sp)
                                 Text(
                                     text = money(state.summary.potentialSavingsAnnual),
                                     color = accentColor,
@@ -210,39 +212,29 @@ fun DashboardScreen(
                     }
                 }
 
-                // 3. Four Orange-Highlighted Feature Options (Addendum 03 - Req 3: No shared background container)
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        QuickActionItem(
-                            icon = Icons.Default.Analytics,
-                            label = "Analysis",
-                            onClick = onNavigateToAnalytics,
-                            modifier = Modifier.weight(1f)
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val actions = listOf(
+                            Triple(Icons.Default.Analytics, "Analysis", onNavigateToAnalytics),
+                            Triple(Icons.Default.Subscriptions, "Subscriptions", onNavigateToSubscriptions),
+                            Triple(Icons.Default.Savings, "Savings Simulator", onNavigateToSavings),
+                            Triple(Icons.Default.Hub, "Graph Analysis", onNavigateToGraph)
                         )
-                        QuickActionItem(
-                            icon = Icons.Default.Subscriptions,
-                            label = "Subscriptions",
-                            onClick = onNavigateToSubscriptions,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionItem(
-                            icon = Icons.Default.Savings,
-                            label = "Savings Simulator",
-                            onClick = onNavigateToSavings,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionItem(
-                            icon = Icons.Default.Hub,
-                            label = "Graph Analysis",
-                            onClick = onNavigateToGraph,
-                            modifier = Modifier.weight(1f)
-                        )
+                        val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+                        val columns = when {
+                            maxWidth < 330.dp || fontScale > 1.6f -> 1
+                            maxWidth < 600.dp -> 2
+                            else -> 4
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            actions.chunked(columns).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    row.forEach { (icon, label, click) ->
+                                        QuickActionItem(icon, label, click, Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -257,20 +249,20 @@ fun DashboardScreen(
                 }
 
                 if (state.activity.transactionCount > 0) item {
-                    PayScopeGlassCard(Modifier.fillMaxWidth(), cornerRadius = 24.dp, borderColor = BorderHighlight) {
-                        Text("Statement activity", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    PayScopeGlassCard(Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
+                        Text("Your cash flow", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                         Text("${state.activity.transactionCount} saved transactions / ${state.activity.statementCount} statements", color = TextSecondary,
-                            fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+                            fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
                         state.activity.totals.forEachIndexed { index, totals ->
                             if (index > 0) HorizontalDivider(Modifier.padding(vertical = 14.dp), color = BorderSubtle)
                             Row(Modifier.fillMaxWidth()) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Money out / ${totals.currency}", color = TextMuted, fontSize = 11.sp)
+                                    Text("Money out / ${totals.currency}", color = TextMuted, fontSize = 12.sp)
                                     Text(statementMoney(totals.currency, totals.debits), color = TextPrimary, fontSize = 22.sp,
                                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
                                 }
                                 Column(Modifier.weight(1f)) {
-                                    Text("Money in / ${totals.currency}", color = TextMuted, fontSize = 11.sp)
+                                    Text("Money in / ${totals.currency}", color = TextMuted, fontSize = 12.sp)
                                     Text(statementMoney(totals.currency, totals.credits), color = SavingsTeal, fontSize = 22.sp,
                                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
                                 }
@@ -285,7 +277,7 @@ fun DashboardScreen(
                         Text(if (state.hasUploadedStatements) "No recurring payments yet" else "Your financial picture starts here",
                             color = TextPrimary, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp))
                         Text("Import a statement with multiple billing cycles. Gemini reviews the payment evidence before subscriptions appear here.",
-                            color = TextSecondary, fontSize = 13.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 10.dp, bottom = 20.dp))
+                            color = TextSecondary, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 10.dp, bottom = 20.dp))
                         PayScopePillButton(text = "Import statement", onClick = { viewModel.onUploadStatementClicked() }, modifier = Modifier.fillMaxWidth())
                         if (state.hasUploadedStatements) TextButton(onClick = { viewModel.retryAnalysis() }) { Text("Retry Gemini analysis", color = SecondaryCyan) }
                     }
@@ -311,19 +303,19 @@ fun DashboardScreen(
                             SectionTitle("Imported transactions", if (showAllTransactions) "Show fewer" else "Show more") { showAllTransactions = !showAllTransactions }
                             Text(if (showAllTransactions && state.activity.transactionCount > state.activity.transactions.size)
                                 "Latest ${state.activity.transactions.size} of ${state.activity.transactionCount} saved records"
-                                else "Read directly from your saved statement records", color = TextMuted, fontSize = 10.sp)
+                                else "Read directly from your saved statement records", color = TextMuted, fontSize = 12.sp)
                         }
                         items(if (showAllTransactions) state.activity.transactions else state.activity.transactions.take(5), key = { "transaction:${it.id}" }) { tx ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardSurface).padding(14.dp),
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(CardSurface).border(1.dp, BorderSubtle, RoundedCornerShape(18.dp)).padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Icon(if (tx.direction == "credit") Icons.Default.SouthWest else Icons.Default.NorthEast, null,
                                     tint = if (tx.direction == "credit") SavingsTeal else PrimaryOrange, modifier = Modifier.size(20.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                     Text(tx.description, color = TextPrimary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text("${tx.date} / ${tx.status}", color = TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                    Text("${tx.date} / ${tx.status}", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                                 }
                                 Text((if (tx.direction == "credit") "+" else "-") + statementMoney(tx.currency, tx.amount),
-                                    color = if (tx.direction == "credit") SavingsTeal else TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    color = if (tx.direction == "credit") SavingsTeal else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.widthIn(max = 132.dp))
                             }
                         }
                     }
@@ -341,7 +333,7 @@ fun DashboardScreen(
                     if (state.spendTrend.isNotEmpty()) item {
                         PayScopeGlassCard(Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
                             SectionTitle("Spending history", "View analysis", onNavigateToAnalytics)
-                            Text("Recorded recurring payments", color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+                            Text("Recorded recurring payments", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
                             FinancialTrendChart(points = state.spendTrend.map { it.copy(label = it.label.substringBefore(' ')) })
                         }
                     }
@@ -361,16 +353,17 @@ fun DashboardScreen(
                             .clickable(onClick = onNavigateToSubscriptions).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             BrandLogoView(item.logoKey, item.merchantName, size = 38.dp)
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                Text(item.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${item.category} / ${item.cadence}", color = TextMuted, fontSize = 10.sp)
+                                Text(item.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${item.category} / ${item.cadence}", color = TextMuted, fontSize = 12.sp)
                             }
                             Text(if (item.currency == "INR") money(item.amount) else "${item.currency} ${item.amount}", color = TextPrimary, fontSize = 14.sp)
                         }
                     }
 
                     if (!state.isGuestDemo) item {
-                        TextButton(onClick = { viewModel.retryAnalysis() }) { Text("Reanalyze saved records with Gemini", color = SecondaryCyan, fontSize = 11.sp) }
+                        TextButton(onClick = { viewModel.retryAnalysis() }) { Text("Reanalyze saved records with Gemini", color = SecondaryCyan, fontSize = 12.sp) }
                     }
+                }
                 }
             }
         }
@@ -384,39 +377,25 @@ private fun QuickActionItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .heightIn(min = 64.dp)
+            .padding(vertical = 8.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(PrimaryOrange.copy(alpha = 0.12f))
-                .border(1.dp, PrimaryOrange.copy(alpha = 0.35f), CircleShape),
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                .background(PrimaryOrange.copy(alpha = .10f))
+                .border(1.dp, PrimaryOrange.copy(alpha = .12f), RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = PrimaryOrange,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(icon, null, tint = PrimaryOrange, modifier = Modifier.size(21.dp))
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = label,
-            color = TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 2,
-            lineHeight = 13.sp,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Text(label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            lineHeight = 18.sp, modifier = Modifier.weight(1f))
     }
 }
 
@@ -424,9 +403,8 @@ private fun QuickActionItem(
 private fun SectionTitle(title: String, action: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-        Text(action, color = SecondaryCyan, fontSize = 10.sp, modifier = Modifier.clickable(onClick = onClick).padding(vertical = 8.dp))
+        TextButton(onClick = onClick) { Text(action, color = SecondaryCyan, fontSize = 12.sp) }
     }
 }
 
-private fun statementMoney(currency: String, amount: Double): String = if (currency == "INR") money(amount)
-    else currency + " " + NumberFormat.getNumberInstance(Locale("en", "IN")).apply { maximumFractionDigits = 2 }.format(amount)
+private fun statementMoney(currency: String, amount: Double): String = com.payscope.app.core.util.formatMoney(amount, currency)

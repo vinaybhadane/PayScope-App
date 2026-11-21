@@ -2,6 +2,9 @@ package com.payscope.app.core.theme
 
 import android.app.Activity
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -17,14 +20,14 @@ val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryOrange,
-    onPrimary = Color.White,
+    onPrimary = DarkDeepBackground,
     primaryContainer = DarkElevatedCardSurface,
     onPrimaryContainer = DarkTextPrimary,
     secondary = DarkSecondaryCyan,
     onSecondary = DarkDeepBackground,
     secondaryContainer = DarkElevatedCardSurface,
     onSecondaryContainer = DarkSecondaryCyan,
-    tertiary = SavingsTeal,
+    tertiary = Color(0xFF2DD4BF),
     onTertiary = DarkDeepBackground,
     background = DarkDeepBackground,
     onBackground = DarkTextPrimary,
@@ -34,20 +37,20 @@ private val DarkColorScheme = darkColorScheme(
     onSurfaceVariant = DarkTextSecondary,
     outline = DarkBorderSubtle,
     outlineVariant = DarkBorderSubtle,
-    error = DangerRose,
+    error = Color(0xFFFB7185),
     onError = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryOrange,
-    onPrimary = Color.White,
+    onPrimary = DarkDeepBackground,
     primaryContainer = LightElevatedCardSurface,
     onPrimaryContainer = LightTextPrimary,
     secondary = LightSecondaryCyan,
     onSecondary = Color.White,
     secondaryContainer = LightElevatedCardSurface,
     onSecondaryContainer = LightSecondaryCyan,
-    tertiary = SavingsTeal,
+    tertiary = Color(0xFF0F766E),
     onTertiary = Color.White,
     background = LightDeepBackground,
     onBackground = LightTextPrimary,
@@ -57,7 +60,7 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = LightTextSecondary,
     outline = LightBorderSubtle,
     outlineVariant = LightBorderSubtle,
-    error = DangerRose,
+    error = Color(0xFFBE123C),
     onError = Color.White
 )
 
@@ -86,6 +89,13 @@ fun PayScopeTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
+            shapes = Shapes(
+                extraSmall = RoundedCornerShape(8.dp),
+                small = RoundedCornerShape(12.dp),
+                medium = RoundedCornerShape(18.dp),
+                large = RoundedCornerShape(24.dp),
+                extraLarge = RoundedCornerShape(28.dp)
+            ),
             content = content
         )
     }

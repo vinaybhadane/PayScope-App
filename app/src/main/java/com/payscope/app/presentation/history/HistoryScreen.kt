@@ -1,5 +1,8 @@
 package com.payscope.app.presentation.history
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.payscope.app.core.util.formatMoney
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -98,10 +101,6 @@ fun HistoryScreen(
         viewModel.loadHistory()
     }
 
-    val inrFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply {
-        maximumFractionDigits = 0
-    }
-
     val filteredStatements = state.statements.filter {
         state.searchQuery.isBlank() ||
                 it.fileName.contains(state.searchQuery, ignoreCase = true) ||
@@ -134,28 +133,14 @@ fun HistoryScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Top Header: "History" title (Import Statement removed per Addendum 03 - Req 6)
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "History",
-                            color = TextPrimary,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.6).sp
-                        )
-                        Text(
-                            text = "Imported statement records & summaries",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
+                    com.payscope.app.core.components.ScreenHeading(
+                        "History", "Your imported statements, in one place"
+                    )
                 }
 
                 // Search Bar with Filter Icon (Screenshot 2 reference)
@@ -296,7 +281,7 @@ fun HistoryScreen(
                                 )
 
                                 Text(
-                                    text = "Total Out: ${inrFormatter.format(totals.debits.toLong())}",
+                                    text = "Total Out: ${formatMoney(totals.debits, totals.currency)}",
                                     color = PrimaryOrange,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
@@ -466,7 +451,7 @@ fun HistoryScreen(
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text("Total Debits (Money Out)", color = TextMuted, fontSize = 11.sp)
                                                     Text(
-                                                        text = totals?.let { inrFormatter.format(it.debits.toLong()) } ?: "₹0",
+                                                        text = totals?.let { formatMoney(it.debits, it.currency) } ?: "₹0",
                                                         color = PrimaryOrange,
                                                         fontSize = 15.sp,
                                                         fontWeight = FontWeight.Bold
@@ -475,7 +460,7 @@ fun HistoryScreen(
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text("Total Credits (Money In)", color = TextMuted, fontSize = 11.sp)
                                                     Text(
-                                                        text = totals?.let { inrFormatter.format(it.credits.toLong()) } ?: "₹0",
+                                                        text = totals?.let { formatMoney(it.credits, it.currency) } ?: "₹0",
                                                         color = SavingsTeal,
                                                         fontSize = 15.sp,
                                                         fontWeight = FontWeight.Bold

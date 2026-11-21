@@ -1,5 +1,13 @@
 package com.payscope.app.core.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.payscope.app.core.theme.DeepBackground
+import com.payscope.app.core.theme.DarkDeepBackground
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,7 +61,7 @@ import com.payscope.app.core.util.bounceClick
 @Composable
 fun PayScopeHeader(
     greeting: String = "Good morning",
-    userName: String = "Alex",
+    userName: String = "Your workspace",
     photoUrl: String? = null,
     unreadAlertsCount: Int = 0,
     onSearchClick: () -> Unit = {},
@@ -120,134 +128,69 @@ fun PayScopeFloatingBottomBar(
     modifier: Modifier = Modifier,
     unreadAlertsCount: Int = 0
 ) {
+    val shape = RoundedCornerShape(24.dp)
     Box(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
+            .background(DeepBackground)
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // Floating pill dock
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    spotColor = Color.Black.copy(alpha = 0.6f)
-                )
-                .clip(RoundedCornerShape(32.dp))
-                .background(CardSurface.copy(alpha = 0.96f))
-                .border(1.dp, BorderSubtle, RoundedCornerShape(32.dp))
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .shadow(8.dp, shape, spotColor = Color.Black.copy(alpha = .08f))
+                .clip(shape).background(CardSurface)
+                .border(1.dp, BorderSubtle, shape)
+                .selectableGroup().padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NavigationTab.entries.forEach { tab ->
-                    val isSelected = tab == currentTab
-
-                    if (tab == NavigationTab.AI) {
-                        // Prominent elevated centered AI Assistant action (Screenshot 1 inspired)
+            NavigationTab.entries.forEach { tab ->
+                val selected = tab == currentTab
+                val tint by animateColorAsState(
+                    if (selected) PrimaryOrange else TextSecondary,
+                    label = "navigationTint"
+                )
+                val highlight by animateColorAsState(
+                    if (selected) PrimaryOrange.copy(alpha = .12f) else Color.Transparent,
+                    label = "navigationHighlight"
+                )
+                if (tab == NavigationTab.AI) {
+                    Box(
+                        Modifier.weight(1f).heightIn(min = 64.dp)
+                            .semantics { contentDescription = "Open PayScope AI assistant" }
+                            .clip(RoundedCornerShape(18.dp))
+                            .bounceClick(onClick = { onTabSelected(tab) }),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
-                            modifier = Modifier
-                                .weight(1.15f)
-                                .height(64.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { onTabSelected(tab) }
-                                ),
+                            Modifier.size(48.dp).clip(RoundedCornerShape(17.dp))
+                                .background(Brush.linearGradient(listOf(PrimaryOrangeHover, PrimaryOrange))),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .shadow(
-                                        elevation = 12.dp,
-                                        shape = CircleShape,
-                                        spotColor = PrimaryOrange.copy(alpha = 0.5f)
-                                    )
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                PrimaryOrange,
-                                                PrimaryOrangeHover
-                                            )
-                                        )
-                                    )
-                                    .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "PayScope AI Assistant",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
+                            Icon(Icons.Default.AutoAwesome, null, tint = DarkDeepBackground, modifier = Modifier.size(24.dp))
                         }
-                    } else {
-                        val animatedIconTint by animateColorAsState(
-                            targetValue = if (isSelected) PrimaryOrange else TextMuted,
-                            label = "tabIconTint"
-                        )
-
+                    }
+                } else {
+                    Column(
+                        Modifier.weight(1f).heightIn(min = 64.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .selectable(selected = selected, role = Role.Tab, onClick = { onTabSelected(tab) })
+                            .padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { onTabSelected(tab) }
-                                ),
+                            Modifier.width(44.dp).height(30.dp).clip(CircleShape).background(highlight),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Box(contentAlignment = Alignment.TopEnd) {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.label,
-                                        tint = animatedIconTint,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    if (tab == NavigationTab.ALERTS && unreadAlertsCount > 0) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(PrimaryOrange)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = tab.label,
-                                    color = if (isSelected) TextPrimary else TextMuted,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .width(16.dp)
-                                        .height(2.dp)
-                                        .clip(RoundedCornerShape(1.dp))
-                                        .background(if (isSelected) PrimaryOrange else Color.Transparent)
-                                )
+                            Icon(tab.icon, null, tint = tint, modifier = Modifier.size(22.dp))
+                            if (tab == NavigationTab.ALERTS && unreadAlertsCount > 0) {
+                                Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(6.dp).background(PrimaryOrange, CircleShape))
                             }
                         }
+                        Spacer(Modifier.height(3.dp))
+                        Text(tab.label, color = if (selected) TextPrimary else TextSecondary,
+                            fontSize = 11.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1)
                     }
                 }
             }

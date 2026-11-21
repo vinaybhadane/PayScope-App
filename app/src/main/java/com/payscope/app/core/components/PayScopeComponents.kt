@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +36,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -118,12 +120,12 @@ fun PayScopePillButton(
     enabled: Boolean = true,
     height: Dp = 52.dp
 ) {
-    val shape = CircleShape
+    val shape = RoundedCornerShape(16.dp)
 
     val (backgroundBrush, contentColor, borderStroke) = when (variant) {
         ButtonVariant.PRIMARY -> Triple(
             Brush.horizontalGradient(listOf(PrimaryOrange, PrimaryOrangeHover)),
-            Color.White,
+            com.payscope.app.core.theme.DarkDeepBackground,
             null
         )
         ButtonVariant.SECONDARY -> Triple(
@@ -150,7 +152,8 @@ fun PayScopePillButton(
 
     Box(
         modifier = modifier
-            .height(height)
+            .heightIn(min = height)
+            .alpha(if (enabled || isLoading) 1f else 0.42f)
             .clip(shape)
             .background(backgroundBrush)
             .then(
@@ -167,7 +170,7 @@ fun PayScopePillButton(
             )
         } else {
             Row(
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -182,12 +185,13 @@ fun PayScopePillButton(
                 }
                 Text(
                     text = text,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     color = contentColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.2.sp
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    letterSpacing = 0.sp
                 )
             }
         }

@@ -121,7 +121,7 @@ fun ProfileScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp)
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             uiState.errorMessage?.let { message ->
                 item {
@@ -129,42 +129,11 @@ fun ProfileScreen(
                 }
             }
 
-            // Screen Header with Back Action if accessible as subpage
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (onNavigateBack != null) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = TextPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                    } else {
-                        PayScopeLogo(size = 40.dp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Profile & Settings",
-                            color = TextPrimary,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Preferences, Appearance & Financial Audit",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
+                com.payscope.app.core.components.ScreenHeading(
+                    "Profile & settings", "Your account, appearance, and data",
+                    Modifier.padding(horizontal = 20.dp), onBack = onNavigateBack
+                )
             }
 
             // User Info Card
@@ -205,7 +174,7 @@ fun ProfileScreen(
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (uiState.isGuest) "Guest Demo Mode" else "Authenticated Workspace",
+                                        text = if (uiState.isGuest) "Sample workspace" else "Signed in",
                                         color = if (uiState.isGuest) SecondaryCyan else SavingsTeal,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -572,7 +541,7 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "This will permanently purge all statement transactions and detected commitments from your isolated tenant workspace.",
+                            text = "This permanently deletes the statements, transactions, and subscriptions saved in your workspace.",
                             color = TextSecondary,
                             fontSize = 13.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center

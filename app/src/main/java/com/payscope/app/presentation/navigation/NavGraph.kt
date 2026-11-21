@@ -1,5 +1,10 @@
 package com.payscope.app.presentation.navigation
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Scaffold
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -62,27 +67,27 @@ fun PayScopeNavGraph(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            fadeIn(animationSpec = tween(350)) + slideInHorizontally(
+            fadeIn(animationSpec = tween(260)) + slideInHorizontally(
                 initialOffsetX = { 80 },
-                animationSpec = tween(350)
+                animationSpec = tween(260)
             )
         },
         exitTransition = {
-            fadeOut(animationSpec = tween(250)) + slideOutHorizontally(
+            fadeOut(animationSpec = tween(180)) + slideOutHorizontally(
                 targetOffsetX = { -80 },
-                animationSpec = tween(250)
+                animationSpec = tween(180)
             )
         },
         popEnterTransition = {
-            fadeIn(animationSpec = tween(350)) + slideInHorizontally(
+            fadeIn(animationSpec = tween(260)) + slideInHorizontally(
                 initialOffsetX = { -80 },
-                animationSpec = tween(350)
+                animationSpec = tween(260)
             )
         },
         popExitTransition = {
-            fadeOut(animationSpec = tween(250)) + slideOutHorizontally(
+            fadeOut(animationSpec = tween(180)) + slideOutHorizontally(
                 targetOffsetX = { 80 },
-                animationSpec = tween(250)
+                animationSpec = tween(180)
             )
         }
     ) {
@@ -149,58 +154,55 @@ fun MainContainerScreen(
     onNavigateToUpload: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    var currentTab by remember { mutableStateOf(NavigationTab.HOME) }
-    var secondaryScreen by remember { mutableStateOf<SecondaryScreen?>(null) }
-    var showAiAssistant by remember { mutableStateOf(false) }
+    var currentTab by rememberSaveable { mutableStateOf(NavigationTab.HOME) }
+    var secondaryScreen by rememberSaveable { mutableStateOf<SecondaryScreen?>(null) }
+    var showAiAssistant by rememberSaveable { mutableStateOf(false) }
+    val screenState = rememberSaveableStateHolder()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DeepBackground)
-    ) {
-        if (secondaryScreen != null) {
-            when (secondaryScreen) {
-                SecondaryScreen.ANALYTICS -> {
-                    AnalyticsScreen(
-                        onNavigateBack = { secondaryScreen = null }
-                    )
-                }
-                SecondaryScreen.SUBSCRIPTIONS -> {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        SubscriptionsScreen()
+    BackHandler(enabled = secondaryScreen != null || currentTab != NavigationTab.HOME) {
+        if (secondaryScreen != null) secondaryScreen = null
+        else currentTab = NavigationTab.HOME
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize().imePadding(),
+        containerColor = DeepBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            PayScopeFloatingBottomBar(
+                currentTab = currentTab,
+                onTabSelected = { selected ->
+                    if (selected == NavigationTab.AI) showAiAssistant = true
+                    else {
+                        secondaryScreen = null
+                        currentTab = selected
                     }
                 }
-                SecondaryScreen.SAVINGS_SIMULATOR -> {
-                    SavingsScreen(
-                        onNavigateBack = { secondaryScreen = null }
-                    )
-                }
-                SecondaryScreen.KNOWLEDGE_GRAPH -> {
-                    RelationshipGraphScreen(
-                        onNavigateBack = { secondaryScreen = null }
-                    )
-                }
-                SecondaryScreen.PROFILE -> {
-                    ProfileScreen(
-                        onSignOut = onSignOut,
-                        onNavigateBack = { secondaryScreen = null }
-                    )
-                }
-                null -> Unit
-            }
-        } else {
-            // Tab Content with Animated Transition
-            AnimatedContent(
-                targetState = currentTab,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(280)) togetherWith fadeOut(animationSpec = tween(200))
-                },
-                label = "tabTransition",
-                modifier = Modifier.fillMaxSize()
-            ) { tab ->
-                when (tab) {
-                    NavigationTab.HOME -> {
-                        DashboardScreen(
+            )
+        }
+    ) { padding ->
+        AnimatedContent(
+            targetState = currentTab to secondaryScreen,
+            contentKey = { (tab, secondary) -> secondary?.name ?: tab.name },
+            transitionSpec = {
+                (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 24 }) togetherWith
+                    fadeOut(tween(120))
+            },
+            label = "mainNavigation",
+            modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)
+        ) { (tab, secondary) ->
+            screenState.SaveableStateProvider(secondary?.name ?: tab.name) {
+                if (secondary != null) {
+                    when (secondary) {
+                        SecondaryScreen.ANALYTICS -> AnalyticsScreen(onNavigateBack = { secondaryScreen = null })
+                        SecondaryScreen.SUBSCRIPTIONS -> SubscriptionsScreen(onNavigateBack = { secondaryScreen = null })
+                        SecondaryScreen.SAVINGS_SIMULATOR -> SavingsScreen(onNavigateBack = { secondaryScreen = null })
+                        SecondaryScreen.KNOWLEDGE_GRAPH -> RelationshipGraphScreen(onNavigateBack = { secondaryScreen = null })
+                        SecondaryScreen.PROFILE -> ProfileScreen(onSignOut = onSignOut, onNavigateBack = { secondaryScreen = null })
+                    }
+                } else {
+                    when (tab) {
+                        NavigationTab.HOME, NavigationTab.AI -> DashboardScreen(
                             onNavigateToUpload = onNavigateToUpload,
                             onNavigateToAuth = onSignOut,
                             onNavigateToAnalytics = { secondaryScreen = SecondaryScreen.ANALYTICS },
@@ -209,31 +211,9 @@ fun MainContainerScreen(
                             onNavigateToGraph = { secondaryScreen = SecondaryScreen.KNOWLEDGE_GRAPH },
                             onNavigateToProfile = { secondaryScreen = SecondaryScreen.PROFILE }
                         )
-                    }
-                    NavigationTab.SEARCH -> {
-                        SearchScreen(
-                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS }
-                        )
-                    }
-                    NavigationTab.AI -> {
-                        // Center prominent AI action: triggers assistant and stays on previous or Home
-                        DashboardScreen(
-                            onNavigateToUpload = onNavigateToUpload,
-                            onNavigateToAuth = onSignOut,
-                            onNavigateToAnalytics = { secondaryScreen = SecondaryScreen.ANALYTICS },
-                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS },
-                            onNavigateToSavings = { secondaryScreen = SecondaryScreen.SAVINGS_SIMULATOR },
-                            onNavigateToGraph = { secondaryScreen = SecondaryScreen.KNOWLEDGE_GRAPH },
-                            onNavigateToProfile = { secondaryScreen = SecondaryScreen.PROFILE }
-                        )
-                    }
-                    NavigationTab.ALERTS -> {
-                        AlertsScreen(
-                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS }
-                        )
-                    }
-                    NavigationTab.HISTORY -> {
-                        HistoryScreen(
+                        NavigationTab.SEARCH -> SearchScreen(onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS })
+                        NavigationTab.ALERTS -> AlertsScreen(onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS })
+                        NavigationTab.HISTORY -> HistoryScreen(
                             onNavigateToUpload = onNavigateToUpload,
                             onOpenAiAssistant = { showAiAssistant = true }
                         )
@@ -241,26 +221,7 @@ fun MainContainerScreen(
                 }
             }
         }
-
-        // Floating Bottom Navigation Bar (5 destinations per Requirement 2.B & Screenshot 1)
-        PayScopeFloatingBottomBar(
-            currentTab = currentTab,
-            onTabSelected = { selected ->
-                if (selected == NavigationTab.AI) {
-                    showAiAssistant = true
-                } else {
-                    secondaryScreen = null
-                    currentTab = selected
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
-        // Global AI Assistant Dialog (triggered from center bottom nav action or Spend Insights)
-        if (showAiAssistant) {
-            AIAssistantDialog(
-                onDismiss = { showAiAssistant = false }
-            )
-        }
     }
+
+    if (showAiAssistant) AIAssistantDialog(onDismiss = { showAiAssistant = false })
 }

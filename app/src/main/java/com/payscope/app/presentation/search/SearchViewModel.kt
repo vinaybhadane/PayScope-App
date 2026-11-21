@@ -19,7 +19,8 @@ data class SearchUiState(
     val allTransactions: List<ImportedTransaction> = emptyList(),
     val filteredCommitments: List<CommitmentItem> = emptyList(),
     val filteredTransactions: List<ImportedTransaction> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -35,8 +36,9 @@ class SearchViewModel @Inject constructor(
     }
 
     fun loadData() {
+        if (_uiState.value.isLoading) return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
                 val commitments = dashboardRepository.getCommitments()
                 val activity = dashboardRepository.getWorkspaceActivity()
@@ -44,11 +46,14 @@ class SearchViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     allCommitments = commitments,
                     allTransactions = transactions,
-                    isLoading = false
+                    isLoading = false,
+                    errorMessage = dashboardRepository.lastError
                 )
                 applyFilter(_uiState.value.query, _uiState.value.selectedFilter)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _uiState.value = _uiState.value.copy(isLoading = false,
+                    errorMessage = e.localizedMessage ?: "Could not load your payments. Please retry.")
             }
         }
     }
@@ -71,7 +76,8 @@ class SearchViewModel @Inject constructor(
                     it.name.lowercase().contains(q) ||
                             it.merchantName.lowercase().contains(q) ||
                             it.category.lowercase().contains(q) ||
-                            it.paymentRail.lowercase().contains(q)
+                            it.paymentRail.lowercase().contains(q) ||
+                            it.amount.toString().contains(q)
                 }
             }
         }

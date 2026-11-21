@@ -1,5 +1,8 @@
 package com.payscope.app.presentation.alerts
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.payscope.app.core.util.formatMoney
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,10 +80,6 @@ fun AlertsScreen(
         viewModel.loadAlerts()
     }
 
-    val inrFormatter = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply {
-        maximumFractionDigits = 0
-    }
-
     val filters = listOf("All", "Price Changes", "Renewals")
 
     val showHikes = state.selectedFilter in listOf("All", "Price Changes")
@@ -115,30 +114,19 @@ fun AlertsScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Screen Title
                 item {
-                    Column {
-                        Text(
-                            text = "Alerts",
-                            color = TextPrimary,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.6).sp
-                        )
-                        Text(
-                            text = "Price changes, renewals & statement intelligence",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
+                    com.payscope.app.core.components.ScreenHeading(
+                        "Alerts", "Stay ahead of renewals and price changes"
+                    )
                 }
 
                 // Filter Chips
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         filters.forEach { filter ->
                             val isSelected = state.selectedFilter == filter
                             Box(
@@ -155,7 +143,7 @@ fun AlertsScreen(
                             ) {
                                 Text(
                                     text = filter,
-                                    color = if (isSelected) TextPrimary else TextSecondary,
+                                    color = if (isSelected) com.payscope.app.core.theme.DarkDeepBackground else TextSecondary,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -299,7 +287,7 @@ fun AlertsScreen(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = "${inrFormatter.format(hike.oldAmount.toLong())} -> ${inrFormatter.format(hike.newAmount.toLong())}",
+                                        text = "${formatMoney(hike.oldAmount)} -> ${formatMoney(hike.newAmount)}",
                                         color = TextSecondary,
                                         fontSize = 12.sp
                                     )
@@ -321,7 +309,7 @@ fun AlertsScreen(
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "+${inrFormatter.format(hike.annualizedImpact.toLong())}/yr",
+                                        text = "+${formatMoney(hike.annualizedImpact)}/yr",
                                         color = TextMuted,
                                         fontSize = 10.sp
                                     )
@@ -383,7 +371,7 @@ fun AlertsScreen(
 
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = inrFormatter.format(renewal.amount.toLong()),
+                                        text = formatMoney(renewal.amount),
                                         color = TextPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
