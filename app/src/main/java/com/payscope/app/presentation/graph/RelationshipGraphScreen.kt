@@ -93,12 +93,6 @@ fun RelationshipGraphScreen(
                     color = if (data?.isConnected == true) SavingsTeal else TextSecondary, fontSize = 10.sp,
                     modifier = Modifier.padding(top = 4.dp))
             }
-            IconButton(onClick = { viewModel.loadGraph(true) }, enabled = !loading) {
-                Icon(Icons.Default.Sync, "Sync Neo4j", tint = SecondaryCyan)
-            }
-            IconButton(onClick = { viewModel.loadGraph() }, enabled = !loading) {
-                Icon(Icons.Default.Refresh, "Refresh relationships", tint = TextSecondary)
-            }
         }
         message?.let { Text(it, color = WarningAmber, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp)) }
         if (loading && data == null) {

@@ -39,6 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,9 +78,14 @@ fun AlertsScreen(
     viewModel: AlertsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    var isManualRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAlerts()
+    }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) isManualRefreshing = false
     }
 
     val filters = listOf("All", "Price Changes", "Renewals")
@@ -108,8 +116,11 @@ fun AlertsScreen(
             .statusBarsPadding()
     ) {
         PullToRefreshBox(
-            isRefreshing = state.isLoading,
-            onRefresh = { viewModel.loadAlerts(forceRefresh = true) },
+            isRefreshing = isManualRefreshing && state.isLoading,
+            onRefresh = {
+                isManualRefreshing = true
+                viewModel.loadAlerts(forceRefresh = true)
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
