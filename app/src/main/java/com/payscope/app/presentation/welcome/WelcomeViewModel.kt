@@ -2,6 +2,7 @@ package com.payscope.app.presentation.welcome
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.payscope.app.data.local.DataStoreManager
 import com.payscope.app.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,7 +26,8 @@ data class WelcomeUiState(
 
 @HiltViewModel
 class WelcomeViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WelcomeUiState())
@@ -33,6 +35,12 @@ class WelcomeViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<WelcomeEvent>()
     val events: SharedFlow<WelcomeEvent> = _events.asSharedFlow()
+
+    fun toggleTheme(isCurrentlyDark: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setThemeMode(if (isCurrentlyDark) "light" else "dark")
+        }
+    }
 
     fun onGetStartedClicked() {
         viewModelScope.launch {

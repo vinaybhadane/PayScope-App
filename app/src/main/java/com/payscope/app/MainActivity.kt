@@ -20,9 +20,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val initialTheme = kotlinx.coroutines.runBlocking {
+            dataStoreManager.themeModeFlow.first()
+        }
         setContent {
             val systemDark = isSystemInDarkTheme()
-            val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = "dark")
+            val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = initialTheme)
             val darkTheme = when (themeMode) {
                 "light" -> false
                 "system" -> systemDark

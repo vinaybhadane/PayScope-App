@@ -27,7 +27,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ import com.payscope.app.core.theme.DeepBackground
 import com.payscope.app.core.theme.ElevatedCardSurface
 import com.payscope.app.core.theme.GlowCyan
 import com.payscope.app.core.theme.GlowOrange
+import com.payscope.app.core.theme.LocalIsDarkTheme
 import com.payscope.app.core.theme.PrimaryOrange
 import com.payscope.app.core.theme.SavingsTeal
 import com.payscope.app.core.theme.SecondaryCyan
@@ -95,18 +98,21 @@ fun AuthScreen(
         }
     }
 
+    val isDark = LocalIsDarkTheme.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DeepBackground)
             .drawBehind {
+                val glowAlpha = if (isDark) 1f else 0.35f
                 drawAmbientGlow(
-                    color = GlowCyan,
+                    color = GlowCyan.copy(alpha = GlowCyan.alpha * glowAlpha),
                     radius = size.width * 0.55f,
                     center = Offset(size.width * 0.2f, size.height * 0.25f)
                 )
                 drawAmbientGlow(
-                    color = GlowOrange,
+                    color = GlowOrange.copy(alpha = GlowOrange.alpha * glowAlpha),
                     radius = size.width * 0.5f,
                     center = Offset(size.width * 0.8f, size.height * 0.75f)
                 )
@@ -120,9 +126,10 @@ fun AuthScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Bar with Back Button
+            // Top Bar with Back Button and Accessible Theme Toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -137,6 +144,22 @@ fun AuthScreen(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = TextPrimary
+                    )
+                }
+
+                IconButton(
+                    onClick = { viewModel.toggleTheme(isDark) },
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(ElevatedCardSurface)
+                        .border(1.dp, BorderSubtle, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = if (isDark) "Switch to Light theme" else "Switch to Dark theme",
+                        tint = if (isDark) PrimaryOrange else SecondaryCyan,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

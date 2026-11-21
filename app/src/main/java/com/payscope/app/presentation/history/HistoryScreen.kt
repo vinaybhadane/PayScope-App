@@ -83,8 +83,8 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    onNavigateToUpload: () -> Unit,
-    onOpenAiAssistant: () -> Unit,
+    onNavigateToUpload: () -> Unit = {},
+    onOpenAiAssistant: () -> Unit = {},
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -132,54 +132,24 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Top Header: "History" title & "My Statements" action (Screenshot 2 reference)
+                // Top Header: "History" title (Import Statement removed per Addendum 03 - Req 6)
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
-                            Text(
-                                text = "History",
-                                color = TextPrimary,
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.6).sp
-                            )
-                            Text(
-                                text = "Imported statement records & summaries",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        // "My Statements" pill button
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(ElevatedCardSurface)
-                                .border(1.dp, BorderSubtle, RoundedCornerShape(20.dp))
-                                .clickable(onClick = onNavigateToUpload)
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Description,
-                                    contentDescription = null,
-                                    tint = SecondaryCyan,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Import Statement",
-                                    color = TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
+                        Text(
+                            text = "History",
+                            color = TextPrimary,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.6).sp
+                        )
+                        Text(
+                            text = "Imported statement records & summaries",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                 }
 
@@ -381,18 +351,16 @@ fun HistoryScreen(
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "Upload your PDF, CSV, Excel or JSON statement to track subscriptions and payment history.",
+                                    text = if (state.searchQuery.isEmpty())
+                                        "Imported statement records and transaction breakdowns will appear here."
+                                    else
+                                        "No records matched your search query. Try another search term.",
                                     color = TextSecondary,
                                     fontSize = 12.sp,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 20.dp)
+                                    modifier = Modifier.padding(horizontal = 24.dp)
                                 )
-                                Spacer(modifier = Modifier.height(18.dp))
-                                PayScopePillButton(
-                                    text = "Upload Bank Statement",
-                                    variant = ButtonVariant.PRIMARY,
-                                    onClick = onNavigateToUpload
-                                )
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
                         }
                     }

@@ -11,6 +11,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.payscope.app.data.local.DataStoreManager
 import com.payscope.app.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -37,7 +38,8 @@ data class AuthUiState(
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -45,6 +47,12 @@ class AuthViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<AuthEvent>()
     val events: SharedFlow<AuthEvent> = _events.asSharedFlow()
+
+    fun toggleTheme(isCurrentlyDark: Boolean) {
+        viewModelScope.launch {
+            dataStoreManager.setThemeMode(if (isCurrentlyDark) "light" else "dark")
+        }
+    }
 
     companion object {
         const val DEBUG_SHA1 = "E0:09:D9:D7:1D:E8:68:76:33:C7:09:BE:FD:90:55:07:64:D0:20:FA"

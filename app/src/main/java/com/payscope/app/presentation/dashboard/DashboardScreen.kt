@@ -56,13 +56,16 @@ fun DashboardScreen(
         } }
     }
 
+    val isDark = LocalIsDarkTheme.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DeepBackground)
             .drawBehind {
-                drawAmbientGlow(GlowOrange, size.width, Offset(size.width, 0f))
-                drawAmbientGlow(GlowCyan, size.width * .8f, Offset(0f, size.height * .6f))
+                val glowAlpha = if (isDark) 1f else 0.35f
+                drawAmbientGlow(GlowOrange.copy(alpha = GlowOrange.alpha * glowAlpha), size.width, Offset(size.width, 0f))
+                drawAmbientGlow(GlowCyan.copy(alpha = GlowCyan.alpha * glowAlpha), size.width * .8f, Offset(0f, size.height * .6f))
             }
             .statusBarsPadding()
     ) {
@@ -76,8 +79,22 @@ fun DashboardScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // Header: Profile Avatar at top-left, No PayScope logo in Home header (Addendum 02 - Req 2 & 5)
+                // 1. Header: Profile Avatar at top-left & Personalized Welcome Heading (Addendum 03 - Req 2)
                 item {
+                    val welcomeHeading = remember(state.userName, state.isGuestDemo) {
+                        val rawName = state.userName.trim()
+                        val isGeneric = rawName.isEmpty() ||
+                                rawName.equals("Your workspace", ignoreCase = true) ||
+                                rawName.equals("PayScope User", ignoreCase = true) ||
+                                rawName.equals("null", ignoreCase = true) ||
+                                rawName.equals("undefined", ignoreCase = true)
+                        if (!state.isGuestDemo && !isGeneric) {
+                            "Welcome back, $rawName"
+                        } else {
+                            "Welcome back"
+                        }
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -98,53 +115,130 @@ fun DashboardScreen(
                                 letterSpacing = 1.2.sp
                             )
                             Text(
-                                text = "Overview",
+                                text = welcomeHeading,
                                 color = TextPrimary,
-                                fontSize = 28.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.8).sp
+                                letterSpacing = (-0.6).sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
 
-                // Four Icon-led Quick-Access Options (Addendum 02 - Req 3 & PhonePe layout reference)
+                // 2. Monthly Recurring Spend Card (Addendum 03 - Req 4: Above feature options, theme-specific styling)
+                item {
+                    val cardBorder = if (isDark) BorderHighlight else BorderCyanHighlight
+                    val cardGlow = if (isDark) GlowOrange else GlowCyan
+                    val badgeTint = if (isDark) PrimaryOrange else SecondaryCyan
+                    val badgeBg = if (isDark) PrimaryOrange.copy(alpha = 0.12f) else SecondaryCyan.copy(alpha = 0.12f)
+
+                    PayScopeGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 26.dp,
+                        borderColor = cardBorder,
+                        glowColor = cardGlow
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Monthly recurring spend",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(badgeBg)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${state.summary.activeSubscriptionsCount} active",
+                                    color = badgeTint,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = money(state.summary.monthlyRecurringSpend),
+                            color = TextPrimary,
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-1.2).sp,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+
+                        Text(
+                            text = if (state.isGuestDemo) "Sample recurring commitments" else "INR commitments",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        HorizontalDivider(Modifier.padding(vertical = 16.dp), color = BorderSubtle)
+
+                        Row(Modifier.fillMaxWidth()) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Annualized cost", color = TextMuted, fontSize = 11.sp)
+                                Text(
+                                    text = money(state.summary.annualizedSpend),
+                                    color = TextPrimary,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("Savings scenarios / yr", color = TextMuted, fontSize = 11.sp)
+                                Text(
+                                    text = money(state.summary.potentialSavingsAnnual),
+                                    color = SavingsTeal,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. Four Orange-Highlighted Feature Options (Addendum 03 - Req 3: No shared background container)
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(CardSurface)
-                            .border(1.dp, BorderSubtle, RoundedCornerShape(22.dp))
-                            .padding(horizontal = 8.dp, vertical = 14.dp),
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Top
                     ) {
                         QuickActionItem(
                             icon = Icons.Default.Analytics,
                             label = "Analysis",
-                            tint = SecondaryCyan,
                             onClick = onNavigateToAnalytics,
                             modifier = Modifier.weight(1f)
                         )
                         QuickActionItem(
                             icon = Icons.Default.Subscriptions,
                             label = "Subscriptions",
-                            tint = PrimaryOrange,
                             onClick = onNavigateToSubscriptions,
                             modifier = Modifier.weight(1f)
                         )
                         QuickActionItem(
                             icon = Icons.Default.Savings,
                             label = "Savings Simulator",
-                            tint = SavingsTeal,
                             onClick = onNavigateToSavings,
                             modifier = Modifier.weight(1f)
                         )
                         QuickActionItem(
                             icon = Icons.Default.Hub,
                             label = "Graph Analysis",
-                            tint = SecondaryCyan,
                             onClick = onNavigateToGraph,
                             modifier = Modifier.weight(1f)
                         )
@@ -195,30 +289,6 @@ fun DashboardScreen(
                         if (state.hasUploadedStatements) TextButton(onClick = { viewModel.retryAnalysis() }) { Text("Retry Gemini analysis", color = SecondaryCyan) }
                     }
                 } else {
-                    if (state.commitments.isNotEmpty()) item {
-                        PayScopeGlassCard(Modifier.fillMaxWidth(), cornerRadius = 26.dp, borderColor = BorderHighlight) {
-                            Text("Monthly recurring spend", color = TextSecondary, fontSize = 12.sp)
-                            Text(money(state.summary.monthlyRecurringSpend), color = TextPrimary, fontSize = 38.sp,
-                                fontWeight = FontWeight.Bold, letterSpacing = (-1.3).sp, modifier = Modifier.padding(top = 8.dp))
-                            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("${state.summary.activeSubscriptionsCount} active", color = SecondaryCyan, fontSize = 11.sp,
-                                    modifier = Modifier.background(SecondaryCyan.copy(alpha = .09f), CircleShape).padding(horizontal = 10.dp, vertical = 5.dp))
-                                Text("INR commitments", color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 5.dp))
-                            }
-                            HorizontalDivider(Modifier.padding(vertical = 20.dp), color = BorderSubtle)
-                            Row(Modifier.fillMaxWidth()) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("Annualized cost", color = TextMuted, fontSize = 11.sp)
-                                    Text(money(state.summary.annualizedSpend), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
-                                }
-                                Column(Modifier.weight(1f)) {
-                                    Text("Savings scenarios / yr", color = TextMuted, fontSize = 11.sp)
-                                    Text(money(state.summary.potentialSavingsAnnual), color = SavingsTeal, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 5.dp))
-                                }
-                            }
-                        }
-                    }
-
                     // Import Statement Action (Connections removed from Overview per Requirement 2.A)
                     item {
                         PayScopePillButton(
@@ -327,7 +397,6 @@ fun DashboardScreen(
 private fun QuickActionItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    tint: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -342,14 +411,14 @@ private fun QuickActionItem(
             modifier = Modifier
                 .size(52.dp)
                 .clip(CircleShape)
-                .background(ElevatedCardSurface)
-                .border(1.dp, BorderSubtle, CircleShape),
+                .background(PrimaryOrange.copy(alpha = 0.12f))
+                .border(1.dp, PrimaryOrange.copy(alpha = 0.35f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = tint,
+                tint = PrimaryOrange,
                 modifier = Modifier.size(24.dp)
             )
         }

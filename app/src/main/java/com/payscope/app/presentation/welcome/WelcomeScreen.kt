@@ -2,14 +2,17 @@ package com.payscope.app.presentation.welcome
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,13 +41,16 @@ fun WelcomeScreen(onNavigateToAuth: () -> Unit, onNavigateToDemo: () -> Unit,
             }
         }
     }
+    val isDark = LocalIsDarkTheme.current
     Box(Modifier.fillMaxSize().background(DeepBackground)) {
         Canvas(Modifier.fillMaxSize()) {
             val orangeCenter = Offset(size.width, size.height * .28f)
             val cyanCenter = Offset(0f, size.height * .65f)
-            drawCircle(Brush.radialGradient(listOf(GlowOrange, Color.Transparent), orangeCenter, size.width),
+            val orangeGlow = if (isDark) GlowOrange else GlowOrange.copy(alpha = 0.08f)
+            val cyanGlow = if (isDark) GlowCyan else GlowCyan.copy(alpha = 0.08f)
+            drawCircle(Brush.radialGradient(listOf(orangeGlow, Color.Transparent), orangeCenter, size.width),
                 radius = size.width, center = orangeCenter)
-            drawCircle(Brush.radialGradient(listOf(GlowCyan, Color.Transparent), cyanCenter, size.width),
+            drawCircle(Brush.radialGradient(listOf(cyanGlow, Color.Transparent), cyanCenter, size.width),
                 radius = size.width, center = cyanCenter)
         }
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
@@ -57,8 +63,26 @@ fun WelcomeScreen(onNavigateToAuth: () -> Unit, onNavigateToDemo: () -> Unit,
                         fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.6).sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lock, null, tint = SavingsTeal, modifier = Modifier.size(13.dp))
-                    Text("No bank login", Modifier.padding(start = 5.dp), color = TextSecondary, fontSize = 11.sp)
+                    IconButton(
+                        onClick = { viewModel.toggleTheme(isDark) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(ElevatedCardSurface)
+                            .border(1.dp, BorderSubtle, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDark) "Switch to Light theme" else "Switch to Dark theme",
+                            tint = if (isDark) PrimaryOrange else SecondaryCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Lock, null, tint = SavingsTeal, modifier = Modifier.size(13.dp))
+                        Text("No bank login", Modifier.padding(start = 5.dp), color = TextSecondary, fontSize = 11.sp)
+                    }
                 }
             }
             Spacer(Modifier.height(40.dp))
