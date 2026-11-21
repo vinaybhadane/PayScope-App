@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,11 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,12 +62,14 @@ import com.payscope.app.core.util.bounceClick
 fun PayScopeGlassCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 26.dp,
-    backgroundColor: Color = CardSurface,
-    borderColor: Color = BorderSubtle,
+    backgroundColor: Color = Color.Unspecified,
+    borderColor: Color = Color.Unspecified,
     glowColor: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val actualBg = if (backgroundColor != Color.Unspecified) backgroundColor else CardSurface
+    val actualBorder = if (borderColor != Color.Unspecified) borderColor else BorderSubtle
     val shape = RoundedCornerShape(cornerRadius)
     val cardModifier = modifier
         .then(
@@ -74,8 +84,8 @@ fun PayScopeGlassCard(
             } else Modifier
         )
         .clip(shape)
-        .background(backgroundColor)
-        .border(1.dp, borderColor, shape)
+        .background(actualBg)
+        .border(1.dp, actualBorder, shape)
         .then(
             if (onClick != null) {
                 Modifier.bounceClick(scaleDown = 0.98f, onClick = onClick)
@@ -180,6 +190,52 @@ fun PayScopePillButton(
                     letterSpacing = 0.2.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun UserAvatar(
+    photoUrl: String?,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    size: Dp = 42.dp,
+    contentDescription: String = "User profile picture"
+) {
+    val clickableModifier = if (onClick != null) {
+        modifier.clickable(onClick = onClick)
+    } else {
+        modifier
+    }
+
+    Box(
+        modifier = clickableModifier
+            .size(size)
+            .clip(CircleShape)
+            .background(ElevatedCardSurface)
+            .border(1.5.dp, BorderSubtle, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        var imageLoadFailed by remember(photoUrl) { mutableStateOf(false) }
+
+        if (!photoUrl.isNullOrBlank() && !imageLoadFailed) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = contentDescription,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                onError = { imageLoadFailed = true }
+            )
+        } else {
+            // Neutral avatar fallback icon per Requirement 5 (NOT a random letter/initial)
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = contentDescription,
+                tint = SecondaryCyan,
+                modifier = Modifier.size(size * 0.55f)
+            )
         }
     }
 }

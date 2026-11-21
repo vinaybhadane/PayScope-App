@@ -1,11 +1,11 @@
 package com.payscope.app.presentation.profile
 
-import com.payscope.app.core.util.drawAmbientGlow
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,28 +15,29 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,14 +53,18 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.payscope.app.core.components.ButtonVariant
 import com.payscope.app.core.components.PayScopeGlassCard
+import com.payscope.app.core.components.PayScopeLogo
 import com.payscope.app.core.components.PayScopePillButton
-import com.payscope.app.core.theme.BorderHighlight
+import com.payscope.app.core.components.StatusMessage
+import com.payscope.app.core.components.UserAvatar
 import com.payscope.app.core.theme.BorderSubtle
 import com.payscope.app.core.theme.CardSurface
 import com.payscope.app.core.theme.DangerRose
@@ -73,23 +78,25 @@ import com.payscope.app.core.theme.SecondaryCyan
 import com.payscope.app.core.theme.TextMuted
 import com.payscope.app.core.theme.TextPrimary
 import com.payscope.app.core.theme.TextSecondary
-import com.payscope.app.core.theme.WarningAmber
+import com.payscope.app.core.util.FinancialAuditPdfGenerator
+import com.payscope.app.core.util.drawAmbientGlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 ProfileEvent.NavigateToAuth -> onSignOut()
-                is ProfileEvent.ShowMessage -> android.widget.Toast.makeText(context, event.text, android.widget.Toast.LENGTH_LONG).show()
+                is ProfileEvent.ShowMessage -> Toast.makeText(context, event.text, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -114,27 +121,49 @@ fun ProfileScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
-            uiState.errorMessage?.let { message -> item {
-                com.payscope.app.core.components.StatusMessage(message) { viewModel.loadProfile() }
-            } }
-            // Screen Title
+            uiState.errorMessage?.let { message ->
+                item {
+                    StatusMessage(message) { viewModel.loadProfile() }
+                }
+            }
+
+            // Screen Header with Back Action if accessible as subpage
             item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                    com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Profile & Settings",
-                        color = TextPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Tenant workspace isolation & preferences",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    } else {
+                        PayScopeLogo(size = 40.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Profile & Settings",
+                            color = TextPrimary,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Preferences, Appearance & Financial Audit",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
@@ -143,31 +172,16 @@ fun ProfileScreen(
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     PayScopeGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 28.dp,
-                        backgroundColor = CardSurface,
-                        borderColor = BorderSubtle
+                        cornerRadius = 24.dp
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(listOf(SecondaryCyan, Color(0xFF008B8B)))
-                                    )
-                                    .border(2.dp, SecondaryCyan, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = uiState.userName.firstOrNull()?.uppercase() ?: "U",
-                                    color = Color(0xFF040711),
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
+                            UserAvatar(
+                                photoUrl = uiState.userPhotoUrl,
+                                size = 56.dp
+                            )
 
                             Spacer(modifier = Modifier.width(16.dp))
 
@@ -175,7 +189,7 @@ fun ProfileScreen(
                                 Text(
                                     text = uiState.userName,
                                     color = TextPrimary,
-                                    fontSize = 18.sp,
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
@@ -184,25 +198,23 @@ fun ProfileScreen(
                                     fontSize = 13.sp
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (uiState.isGuest) ElevatedCardSurface else SavingsTeal.copy(alpha = 0.2f))
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = if (uiState.isGuest) "Guest Demo Mode" else "Authenticated User",
-                                            color = if (uiState.isGuest) SecondaryCyan else SavingsTeal,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (uiState.isGuest) ElevatedCardSurface else SavingsTeal.copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (uiState.isGuest) "Guest Demo Mode" else "Authenticated Workspace",
+                                        color = if (uiState.isGuest) SecondaryCyan else SavingsTeal,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // Stats Grid
                         Row(
@@ -210,7 +222,7 @@ fun ProfileScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(ElevatedCardSurface)
-                                .padding(14.dp),
+                                .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceAround
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -228,112 +240,135 @@ fun ProfileScreen(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
             }
 
-            // Notification Preferences Card
+            // Appearance & Theme Section (Requirement 2.F)
             item {
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     PayScopeGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 24.dp,
-                        backgroundColor = CardSurface,
-                        borderColor = BorderSubtle
+                        cornerRadius = 24.dp
                     ) {
                         Text(
-                            text = "Notification Settings",
+                            text = "Appearance & Theme",
                             color = TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Choose light or dark mode across all screens",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
+                        )
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(ElevatedCardSurface)
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = null,
-                                    tint = SecondaryCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Email renewal reminders",
-                                        color = TextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = "Reminders 5, 3 and 1 days before estimated renewal",
-                                        color = TextMuted,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-
-                            Switch(
-                                checked = uiState.renewalAlertsEnabled,
-                                onCheckedChange = { viewModel.onToggleRenewalAlerts(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = PrimaryOrange,
-                                    uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = ElevatedCardSurface
-                                )
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // Statement History Section
-            item {
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    PayScopeGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 24.dp,
-                        backgroundColor = CardSurface,
-                        borderColor = BorderSubtle
-                    ) {
-                        Text(
-                            text = "Imported Statements",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        uiState.statementHistory.forEach { stmt ->
-                            Row(
+                            // Dark Mode Option
+                            val isDark = uiState.themeMode == "dark"
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(ElevatedCardSurface)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isDark) CardSurface else Color.Transparent)
+                                    .border(
+                                        width = if (isDark) 1.dp else 0.dp,
+                                        color = if (isDark) PrimaryOrange else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { viewModel.onSetThemeMode("dark") },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.Description,
+                                        imageVector = Icons.Default.DarkMode,
                                         contentDescription = null,
-                                        tint = SecondaryCyan,
-                                        modifier = Modifier.size(20.dp)
+                                        tint = if (isDark) PrimaryOrange else TextMuted,
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(text = stmt.fileName, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                        Text(text = "${stmt.recordCount} records • ${stmt.uploadedAt}", color = TextMuted, fontSize = 11.sp)
-                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Dark",
+                                        color = if (isDark) TextPrimary else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isDark) FontWeight.Bold else FontWeight.Medium
+                                    )
                                 }
+                            }
 
-                                Text(text = stmt.fileType, color = PrimaryOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            // Light Mode Option
+                            val isLight = uiState.themeMode == "light"
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isLight) CardSurface else Color.Transparent)
+                                    .border(
+                                        width = if (isLight) 1.dp else 0.dp,
+                                        color = if (isLight) PrimaryOrange else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { viewModel.onSetThemeMode("light") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        tint = if (isLight) PrimaryOrange else TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Light",
+                                        color = if (isLight) TextPrimary else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isLight) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // System Default Option
+                            val isSystem = uiState.themeMode == "system"
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSystem) CardSurface else Color.Transparent)
+                                    .border(
+                                        width = if (isSystem) 1.dp else 0.dp,
+                                        color = if (isSystem) PrimaryOrange else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { viewModel.onSetThemeMode("system") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.SettingsBrightness,
+                                        contentDescription = null,
+                                        tint = if (isSystem) PrimaryOrange else TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Auto",
+                                        color = if (isSystem) TextPrimary else TextMuted,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSystem) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
@@ -341,7 +376,7 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Data Export & Deletion Actions
+            // Financial Audit & Actions
             item {
                 Column(
                     modifier = Modifier
@@ -350,9 +385,10 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     PayScopePillButton(
-                        text = "Export Financial Audit",
+                        text = if (uiState.isExporting) "Generating PDF..." else "Financial Audit Export",
                         icon = Icons.Default.Download,
                         variant = ButtonVariant.SECONDARY,
+                        isLoading = uiState.isExporting,
                         onClick = { viewModel.onExportData() },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -371,6 +407,140 @@ fun ProfileScreen(
                         onClick = { viewModel.onSignOut() },
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+        }
+
+        // PDF Generation Success Dialog
+        uiState.exportPdfFile?.let { pdfFile ->
+            BasicAlertDialog(onDismissRequest = { viewModel.onDismissExport() }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(CardSurface)
+                        .border(1.dp, BorderSubtle, RoundedCornerShape(26.dp))
+                        .padding(24.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(SavingsTeal.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                tint = SavingsTeal,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "Financial Audit Report (PDF)",
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "A formatted PDF report has been generated with your real verified statement audit data.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // File Info Card
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(ElevatedCardSurface)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = pdfFile.name,
+                                    color = TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${pdfFile.length() / 1024} KB • PDF Document",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Open PDF button
+                            PayScopePillButton(
+                                text = "Open PDF",
+                                icon = Icons.Default.OpenInNew,
+                                variant = ButtonVariant.PRIMARY,
+                                onClick = {
+                                    FinancialAuditPdfGenerator.openPdf(context, pdfFile)
+                                    viewModel.onDismissExport()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Share button
+                            PayScopePillButton(
+                                text = "Share",
+                                icon = Icons.Default.Share,
+                                variant = ButtonVariant.SECONDARY,
+                                onClick = {
+                                    try {
+                                        val uri = FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            pdfFile
+                                        )
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/pdf"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Share Financial Audit PDF"))
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Could not share PDF.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "Dismiss",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clickable { viewModel.onDismissExport() }
+                                .padding(8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -429,52 +599,6 @@ fun ProfileScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                    }
-                }
-            }
-        }
-
-        // Export View Dialog
-        if (uiState.exportSummaryText != null) {
-            BasicAlertDialog(onDismissRequest = { viewModel.onDismissExport() }) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(CardSurface)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(26.dp))
-                        .padding(20.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = "Financial Audit Export",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(ElevatedCardSurface)
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = uiState.exportSummaryText!!,
-                                color = TextSecondary,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        PayScopePillButton(
-                            text = "Close",
-                            variant = ButtonVariant.PRIMARY,
-                            onClick = { viewModel.onDismissExport() },
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
             }

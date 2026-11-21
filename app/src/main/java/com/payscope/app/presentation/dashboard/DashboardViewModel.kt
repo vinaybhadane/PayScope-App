@@ -39,7 +39,8 @@ data class DashboardUiState(
     val spendTrend: List<SpendTrendPoint> = emptyList(),
     val categories: List<CategorySpend> = emptyList(),
     val upcoming: List<UpcomingPayment> = emptyList(),
-    val priceHikes: List<PriceHikeAlert> = emptyList()
+    val priceHikes: List<PriceHikeAlert> = emptyList(),
+    val userPhotoUrl: String? = null
 )
 
 @HiltViewModel
@@ -64,6 +65,8 @@ class DashboardViewModel @Inject constructor(
             val isGuest = dataStoreManager.isGuestFlow.first()
             val userName = dataStoreManager.userNameFlow.first()
             val hasUploaded = dataStoreManager.hasUploadedStatementsFlow.first()
+            val photoUrl = dataStoreManager.userPhotoUrlFlow.first()
+                ?: runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.photoUrl?.toString() }.getOrNull()
 
             if (forceRefresh) dashboardRepository.refresh()
             val activity = dashboardRepository.getWorkspaceActivity()
@@ -86,6 +89,7 @@ class DashboardViewModel @Inject constructor(
                 categories = categories,
                 upcoming = upcoming,
                 priceHikes = priceHikes,
+                userPhotoUrl = photoUrl,
                 errorMessage = dashboardRepository.lastError
             )
         }

@@ -1,14 +1,17 @@
 package com.payscope.app.presentation.profile
 
-import com.payscope.app.data.api.*
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.payscope.app.core.util.FinancialAuditPdfGenerator
+import com.payscope.app.data.api.*
 import com.payscope.app.data.local.DataStoreManager
 import com.payscope.app.data.repository.AuthRepository
 import com.payscope.app.data.repository.DashboardRepository
 import com.payscope.app.data.repository.StatementRepository
 import com.payscope.app.domain.model.BankStatementItem
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 sealed interface ProfileEvent {
@@ -32,15 +36,17 @@ data class ProfileUiState(
     val statementsCount: Int = 0,
     val activeSubscriptionsCount: Int = 0,
     val currency: String = "INR (₹)",
-    val renewalAlertsEnabled: Boolean = false,
-    val alertDaysBefore: Int = 3,
+    val themeMode: String = "dark",
     val statementHistory: List<BankStatementItem> = emptyList(),
     val errorMessage: String? = null,
-    val exportSummaryText: String? = null
+    val exportPdfFile: File? = null,
+    val isExporting: Boolean = false,
+    val userPhotoUrl: String? = null
 )
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val authRepository: AuthRepository,
     private val dataStoreManager: DataStoreManager,
     private val statementRepository: StatementRepository,
@@ -61,24 +67,27 @@ class ProfileViewModel @Inject constructor(
     fun loadProfile() {
         viewModelScope.launch {
             try {
-            val isGuest = dataStoreManager.isGuestFlow.first()
-            val email = dataStoreManager.userEmailFlow.first() ?: if (isGuest) "guest@payscope.demo" else "user@payscope.app"
-            val name = dataStoreManager.userNameFlow.first()
-            val summary = dashboardRepository.getFinancialSummary()
-            val history = statementRepository.getImportHistory()
-            val token = dataStoreManager.authTokenFlow.first() ?: error("Please sign in again.")
-            val emailSettings = api.getEmailSettings("Bearer $token").requireBody()
+                val isGuest = dataStoreManager.isGuestFlow.first()
+                val email = dataStoreManager.userEmailFlow.first() ?: if (isGuest) "guest@payscope.demo" else "user@payscope.app"
+                val name = dataStoreManager.userNameFlow.first()
+                val photoUrl = dataStoreManager.userPhotoUrlFlow.first()
+                    ?: runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.photoUrl?.toString() }.getOrNull()
+                val theme = dataStoreManager.themeModeFlow.first()
+                val summary = dashboardRepository.getFinancialSummary()
+                val history = statementRepository.getImportHistory()
 
-            _uiState.value = _uiState.value.copy(
-                userName = name,
-                email = email,
-                workspaceId = dataStoreManager.workspaceIdFlow.first().orEmpty(),
-                statementHistory = history, statementsCount = history.size,
-                renewalAlertsEnabled = emailSettings["reminders_enabled"] == true,
-                isGuest = isGuest,
-                errorMessage = dashboardRepository.lastError,
-                activeSubscriptionsCount = summary.activeSubscriptionsCount
-            )
+                _uiState.value = _uiState.value.copy(
+                    userName = name,
+                    email = email,
+                    workspaceId = dataStoreManager.workspaceIdFlow.first().orEmpty(),
+                    statementHistory = history,
+                    statementsCount = history.size,
+                    themeMode = theme,
+                    isGuest = isGuest,
+                    userPhotoUrl = photoUrl,
+                    errorMessage = dashboardRepository.lastError,
+                    activeSubscriptionsCount = summary.activeSubscriptionsCount
+                )
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.value = _uiState.value.copy(errorMessage = e.localizedMessage ?: "Could not load your profile.")
@@ -86,51 +95,46 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun onToggleRenewalAlerts(enabled: Boolean) {
+    fun onSetThemeMode(mode: String) {
         viewModelScope.launch {
-            try {
-                val token = dataStoreManager.authTokenFlow.first() ?: error("Please sign in again.")
-                val current = api.getEmailSettings("Bearer $token").requireBody()
-                api.updateEmailSettings("Bearer $token", mapOf("reports_enabled" to (current["reports_enabled"] == true),
-                    "reminders_enabled" to enabled)).requireSuccess()
-                _uiState.value = _uiState.value.copy(renewalAlertsEnabled = enabled)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _events.emit(ProfileEvent.ShowMessage(e.localizedMessage ?: "Could not update reminders."))
-            }
+            dataStoreManager.setThemeMode(mode)
+            _uiState.value = _uiState.value.copy(themeMode = mode)
         }
     }
 
     fun onExportData() {
         viewModelScope.launch {
             try {
-            val summary = dashboardRepository.getFinancialSummary()
-            check(dashboardRepository.lastError == null) { dashboardRepository.lastError.orEmpty() }
-            val commitments = dashboardRepository.getCommitments()
-            val text = buildString {
-                appendLine("=== PayScope Financial Intelligence Audit Report ===")
-                appendLine("Generated: ${java.time.LocalDate.now()}")
-                appendLine("Workspace: ${_uiState.value.workspaceId}")
-                appendLine("Monthly Recurring Spend: ₹${summary.monthlyRecurringSpend.toInt()}")
-                appendLine("Annual Commitment: ₹${summary.annualizedSpend.toInt()}")
-                appendLine("Potential Annual Savings: ₹${summary.potentialSavingsAnnual.toInt()}")
-                appendLine()
-                appendLine("--- Monitored Subscriptions ---")
-                commitments.forEach { c ->
-                    appendLine("• ${c.name} (${c.merchantName}): ₹${c.amount.toInt()} / ${c.cadence.lowercase()} via ${c.paymentRail} [${c.status}]")
-                }
-            }
-            _uiState.value = _uiState.value.copy(exportSummaryText = text)
-            _events.emit(ProfileEvent.ShowMessage("Financial audit export generated successfully."))
+                _uiState.value = _uiState.value.copy(isExporting = true)
+                val summary = dashboardRepository.getFinancialSummary()
+                check(dashboardRepository.lastError == null) { dashboardRepository.lastError.orEmpty() }
+                val commitments = dashboardRepository.getCommitments()
+                val activity = dashboardRepository.getWorkspaceActivity()
+                val priceHikes = dashboardRepository.getPriceHikes()
+
+                val pdfFile = FinancialAuditPdfGenerator.generateAuditPdf(
+                    context = context,
+                    workspaceId = _uiState.value.workspaceId,
+                    userName = _uiState.value.userName,
+                    userEmail = _uiState.value.email,
+                    summary = summary,
+                    commitments = commitments,
+                    activity = activity,
+                    priceHikes = priceHikes
+                )
+
+                _uiState.value = _uiState.value.copy(exportPdfFile = pdfFile, isExporting = false)
+                _events.emit(ProfileEvent.ShowMessage("Financial audit PDF report generated successfully."))
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _events.emit(ProfileEvent.ShowMessage(e.localizedMessage ?: "Could not generate export."))
+                _uiState.value = _uiState.value.copy(isExporting = false)
+                _events.emit(ProfileEvent.ShowMessage(e.localizedMessage ?: "Could not generate PDF export."))
             }
         }
     }
 
     fun onDismissExport() {
-        _uiState.value = _uiState.value.copy(exportSummaryText = null)
+        _uiState.value = _uiState.value.copy(exportPdfFile = null)
     }
 
     fun onDeleteWorkspaceData() {

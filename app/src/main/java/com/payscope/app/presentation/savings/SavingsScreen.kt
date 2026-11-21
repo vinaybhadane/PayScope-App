@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -78,6 +79,7 @@ import com.payscope.app.domain.model.SavedSavingsPlan
 
 @Composable
 fun SavingsScreen(
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: SavingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -118,8 +120,19 @@ fun SavingsScreen(
                 item {
                     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
-                            Spacer(modifier = Modifier.width(12.dp))
+                            if (onNavigateBack != null) {
+                                IconButton(onClick = onNavigateBack) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = TextPrimary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                            } else {
+                                com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
                             Column {
                                 Text(
                                     text = "Live Savings Calculator",

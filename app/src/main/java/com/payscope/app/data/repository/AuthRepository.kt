@@ -27,6 +27,8 @@ class AuthRepository @Inject constructor(
             val email = dataStoreManager.userEmailFlow.first() ?: (if (isGuest) "guest@payscope.demo" else "user@payscope.app")
             val name = dataStoreManager.userNameFlow.first()
             val hasUploaded = dataStoreManager.hasUploadedStatementsFlow.first()
+            val photoUrl = dataStoreManager.userPhotoUrlFlow.first()
+                ?: runCatching { FirebaseAuth.getInstance().currentUser?.photoUrl?.toString() }.getOrNull()
             UserSession(
                 userId = dataStoreManager.workspaceIdFlow.first().orEmpty(),
                 email = email,
@@ -34,7 +36,8 @@ class AuthRepository @Inject constructor(
                 workspaceId = dataStoreManager.workspaceIdFlow.first().orEmpty(),
                 isGuest = isGuest,
                 token = token,
-                hasUploadedStatements = hasUploaded
+                hasUploadedStatements = hasUploaded,
+                photoUrl = photoUrl
             )
         }
     }
@@ -52,14 +55,15 @@ class AuthRepository @Inject constructor(
     suspend fun handleGoogleSignInSuccess(
         idToken: String,
         email: String,
-        displayName: String
+        displayName: String,
+        photoUrl: String? = null
     ): Result<UserSession> {
         return try {
             val profile = apiService.getCurrentUser("Bearer $idToken").requireBody()
             val workspaceId = profile.id ?: error("Could not load your workspace.")
             val hasUploaded = apiService.getImports("Bearer $idToken").requireBody().items.isNotEmpty()
-            dataStoreManager.saveSession(idToken, workspaceId, email, displayName.ifBlank { "PayScope User" }, false, hasUploaded)
-            Result.success(UserSession(workspaceId, email, displayName, workspaceId, false, idToken, hasUploaded))
+            dataStoreManager.saveSession(idToken, workspaceId, email, displayName.ifBlank { "PayScope User" }, false, hasUploaded, photoUrl)
+            Result.success(UserSession(workspaceId, email, displayName, workspaceId, false, idToken, hasUploaded, photoUrl))
         } catch (e: Exception) { if (e is CancellationException) throw e; Result.failure(e) }
     }
 

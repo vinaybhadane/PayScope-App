@@ -10,24 +10,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import com.payscope.app.core.theme.GlowCyan
-import com.payscope.app.core.theme.PrimaryOrange
-import com.payscope.app.core.theme.SecondaryCyan
-import com.payscope.app.presentation.assistant.AIAssistantDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,11 +24,16 @@ import androidx.navigation.compose.rememberNavController
 import com.payscope.app.core.components.NavigationTab
 import com.payscope.app.core.components.PayScopeFloatingBottomBar
 import com.payscope.app.core.theme.DeepBackground
+import com.payscope.app.presentation.alerts.AlertsScreen
+import com.payscope.app.presentation.analytics.AnalyticsScreen
+import com.payscope.app.presentation.assistant.AIAssistantDialog
 import com.payscope.app.presentation.auth.AuthScreen
 import com.payscope.app.presentation.dashboard.DashboardScreen
-import com.payscope.app.presentation.analytics.AnalyticsScreen
+import com.payscope.app.presentation.graph.RelationshipGraphScreen
+import com.payscope.app.presentation.history.HistoryScreen
 import com.payscope.app.presentation.profile.ProfileScreen
 import com.payscope.app.presentation.savings.SavingsScreen
+import com.payscope.app.presentation.search.SearchScreen
 import com.payscope.app.presentation.subscriptions.SubscriptionsScreen
 import com.payscope.app.presentation.upload.UploadScreen
 import com.payscope.app.presentation.welcome.WelcomeScreen
@@ -56,6 +43,14 @@ sealed class Screen(val route: String) {
     data object Auth : Screen("auth")
     data object Upload : Screen("upload")
     data object Main : Screen("main")
+}
+
+enum class SecondaryScreen {
+    ANALYTICS,
+    SUBSCRIPTIONS,
+    SAVINGS_SIMULATOR,
+    KNOWLEDGE_GRAPH,
+    PROFILE
 }
 
 @Composable
@@ -155,7 +150,7 @@ fun MainContainerScreen(
     onSignOut: () -> Unit
 ) {
     var currentTab by remember { mutableStateOf(NavigationTab.HOME) }
-    var analyticsGraph by remember { mutableStateOf(false) }
+    var secondaryScreen by remember { mutableStateOf<SecondaryScreen?>(null) }
     var showAiAssistant by remember { mutableStateOf(false) }
 
     Box(
@@ -163,85 +158,105 @@ fun MainContainerScreen(
             .fillMaxSize()
             .background(DeepBackground)
     ) {
-        // Tab Content with Animated Transition
-        AnimatedContent(
-            targetState = currentTab,
-            transitionSpec = {
-                fadeIn(animationSpec = tween(280)) togetherWith fadeOut(animationSpec = tween(200))
-            },
-            label = "tabTransition",
-            modifier = Modifier.fillMaxSize()
-        ) { tab ->
-            when (tab) {
-                NavigationTab.HOME -> {
-                    DashboardScreen(
-                        onNavigateToUpload = onNavigateToUpload,
-                        onNavigateToAuth = onSignOut,
-                        onNavigateToAnalytics = { analyticsGraph = false; currentTab = NavigationTab.ANALYTICS },
-                        onNavigateToGraph = { analyticsGraph = true; currentTab = NavigationTab.ANALYTICS },
-                        onNavigateToProfile = { currentTab = NavigationTab.PROFILE },
-                        onNavigateToSubscriptions = { currentTab = NavigationTab.SUBSCRIPTIONS }
+        if (secondaryScreen != null) {
+            when (secondaryScreen) {
+                SecondaryScreen.ANALYTICS -> {
+                    AnalyticsScreen(
+                        onNavigateBack = { secondaryScreen = null }
                     )
                 }
-                NavigationTab.ANALYTICS -> {
-                    AnalyticsScreen(initialTab = if (analyticsGraph) 1 else 0)
+                SecondaryScreen.SUBSCRIPTIONS -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        SubscriptionsScreen()
+                    }
                 }
-                NavigationTab.SUBSCRIPTIONS -> {
-                    SubscriptionsScreen()
+                SecondaryScreen.SAVINGS_SIMULATOR -> {
+                    SavingsScreen(
+                        onNavigateBack = { secondaryScreen = null }
+                    )
                 }
-                NavigationTab.SAVINGS -> {
-                    SavingsScreen()
+                SecondaryScreen.KNOWLEDGE_GRAPH -> {
+                    RelationshipGraphScreen(
+                        onNavigateBack = { secondaryScreen = null }
+                    )
                 }
-                NavigationTab.PROFILE -> {
-                    ProfileScreen(onSignOut = onSignOut)
+                SecondaryScreen.PROFILE -> {
+                    ProfileScreen(
+                        onSignOut = onSignOut,
+                        onNavigateBack = { secondaryScreen = null }
+                    )
+                }
+                null -> Unit
+            }
+        } else {
+            // Tab Content with Animated Transition
+            AnimatedContent(
+                targetState = currentTab,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(280)) togetherWith fadeOut(animationSpec = tween(200))
+                },
+                label = "tabTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { tab ->
+                when (tab) {
+                    NavigationTab.HOME -> {
+                        DashboardScreen(
+                            onNavigateToUpload = onNavigateToUpload,
+                            onNavigateToAuth = onSignOut,
+                            onNavigateToAnalytics = { secondaryScreen = SecondaryScreen.ANALYTICS },
+                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS },
+                            onNavigateToSavings = { secondaryScreen = SecondaryScreen.SAVINGS_SIMULATOR },
+                            onNavigateToGraph = { secondaryScreen = SecondaryScreen.KNOWLEDGE_GRAPH },
+                            onNavigateToProfile = { secondaryScreen = SecondaryScreen.PROFILE }
+                        )
+                    }
+                    NavigationTab.SEARCH -> {
+                        SearchScreen(
+                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS }
+                        )
+                    }
+                    NavigationTab.AI -> {
+                        // Center prominent AI action: triggers assistant and stays on previous or Home
+                        DashboardScreen(
+                            onNavigateToUpload = onNavigateToUpload,
+                            onNavigateToAuth = onSignOut,
+                            onNavigateToAnalytics = { secondaryScreen = SecondaryScreen.ANALYTICS },
+                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS },
+                            onNavigateToSavings = { secondaryScreen = SecondaryScreen.SAVINGS_SIMULATOR },
+                            onNavigateToGraph = { secondaryScreen = SecondaryScreen.KNOWLEDGE_GRAPH },
+                            onNavigateToProfile = { secondaryScreen = SecondaryScreen.PROFILE }
+                        )
+                    }
+                    NavigationTab.ALERTS -> {
+                        AlertsScreen(
+                            onNavigateToSubscriptions = { secondaryScreen = SecondaryScreen.SUBSCRIPTIONS }
+                        )
+                    }
+                    NavigationTab.HISTORY -> {
+                        HistoryScreen(
+                            onNavigateToUpload = onNavigateToUpload,
+                            onOpenAiAssistant = { showAiAssistant = true }
+                        )
+                    }
                 }
             }
         }
 
-        // Floating AI Advisor Symbol (present on every page)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 86.dp)
-                .size(54.dp)
-                .shadow(
-                    elevation = 16.dp,
-                    shape = CircleShape,
-                    spotColor = GlowCyan.copy(alpha = 0.5f)
-                )
-                .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFF1E293B),
-                            Color(0xFF0F172A)
-                        )
-                    )
-                )
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            SecondaryCyan,
-                            PrimaryOrange
-                        )
-                    ),
-                    shape = CircleShape
-                )
-                .clickable { showAiAssistant = true },
-            contentAlignment = Alignment.Center
-        ) {
-            com.payscope.app.core.components.PayScopeLogo(size = 44.dp)
-        }
-
-        // Floating Bottom Navigation Bar
+        // Floating Bottom Navigation Bar (5 destinations per Requirement 2.B & Screenshot 1)
         PayScopeFloatingBottomBar(
             currentTab = currentTab,
-            onTabSelected = { currentTab = it },
+            onTabSelected = { selected ->
+                if (selected == NavigationTab.AI) {
+                    showAiAssistant = true
+                } else {
+                    secondaryScreen = null
+                    currentTab = selected
+                }
+            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
 
-        // Global AI Assistant Dialog (accessible from any screen)
+        // Global AI Assistant Dialog (triggered from center bottom nav action or Spend Insights)
         if (showAiAssistant) {
             AIAssistantDialog(
                 onDismiss = { showAiAssistant = false }

@@ -1,5 +1,6 @@
 package com.payscope.app.presentation.graph
 
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,7 +63,10 @@ class GraphViewModel @Inject constructor(private val repository: GraphRepository
 }
 
 @Composable
-fun RelationshipGraphScreen(viewModel: GraphViewModel = hiltViewModel()) {
+fun RelationshipGraphScreen(
+    onNavigateBack: (() -> Unit)? = null,
+    viewModel: GraphViewModel = hiltViewModel()
+) {
     val graph by viewModel.data.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -71,8 +75,18 @@ fun RelationshipGraphScreen(viewModel: GraphViewModel = hiltViewModel()) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     val data = graph
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 100.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp).padding(bottom = 100.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (onNavigateBack != null) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = TextPrimary
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text("Payment connections", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                 Text(if (data?.isConnected == true) "Neo4j | Live workspace projection" else "From saved workspace records",
@@ -103,9 +117,19 @@ fun RelationshipGraphScreen(viewModel: GraphViewModel = hiltViewModel()) {
             val categories = listOf("All payments") + payments.mapNotNull { it.category }.distinct().sorted()
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 categories.forEach { c ->
-                    Text(c, color = if (c == category) DeepBackground else TextSecondary, fontSize = 11.sp,
-                        modifier = Modifier.clip(CircleShape).background(if (c == category) SecondaryCyan else ElevatedCardSurface)
-                            .clickable { category = c; focusId = null }.padding(horizontal = 12.dp, vertical = 8.dp))
+                    val isSelected = c == category
+                    Text(
+                        text = c,
+                        color = if (isSelected) Color.White else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(if (isSelected) SecondaryCyan else ElevatedCardSurface)
+                            .border(1.dp, if (isSelected) BorderCyanHighlight else BorderSubtle, CircleShape)
+                            .clickable { category = c; focusId = null }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
                 }
             }
             val root = focus ?: data.nodes.firstOrNull { it.nodeType == "User" }
@@ -165,6 +189,11 @@ private fun PaymentMap(nodes: List<GraphNodeItem>, edges: List<GraphEdgeItem>, r
             nodes.associate { n -> n.id to if (n.id == rootId) Offset(width / 2, 46 * density)
                 else Offset(if (i % 2 == 0) width * .26f else width * .74f, (145 + (i++ / 2) * 88) * density) }
         }
+        val borderSubtleColor = BorderSubtle
+        val secondaryCyanColor = SecondaryCyan
+        val cardSurfaceColor = CardSurface
+        val textPrimaryColor = TextPrimary
+        val textPrimaryArgb = textPrimaryColor.toArgb()
         Canvas(Modifier.fillMaxSize()
             .pointerInput(nodes) { detectTransformGestures { c, p, z, _ -> onTransform(c, p, z) } }
             .pointerInput(nodes, zoom, pan, width) {
@@ -177,19 +206,19 @@ private fun PaymentMap(nodes: List<GraphNodeItem>, edges: List<GraphEdgeItem>, r
             }) {
             // A quiet grid gives the pan/zoom surface a sense of space.
             for (x in 0..(size.width / (24*density)).toInt()) for (y in 0..(size.height / (24*density)).toInt())
-                drawCircle(BorderSubtle.copy(alpha = .55f), density * .65f, Offset(x*24*density, y*24*density))
+                drawCircle(borderSubtleColor.copy(alpha = .55f), density * .65f, Offset(x*24*density, y*24*density))
             withTransform({ translate(pan.x, pan.y); scale(zoom, zoom, Offset.Zero) }) {
                 edges.forEach { e ->
                     val a = positions[e.source] ?: return@forEach
                     val b = positions[e.target] ?: return@forEach
                     val path = Path().apply { moveTo(a.x, a.y); cubicTo(a.x, (a.y+b.y)/2, b.x, (a.y+b.y)/2, b.x, b.y) }
-                    drawPath(path, SecondaryCyan.copy(alpha = .23f), style = Stroke(1.2f*density))
+                    drawPath(path, secondaryCyanColor.copy(alpha = .23f), style = Stroke(1.2f*density))
                 }
                 nodes.forEach { n ->
                     val p = positions[n.id] ?: return@forEach
                     val color = Color(android.graphics.Color.parseColor(n.colorHex))
                     val topLeft = Offset(p.x-cardWidth/2, p.y-cardHeight/2)
-                    drawRoundRect(CardSurface, topLeft, Size(cardWidth, cardHeight), CornerRadius(12*density))
+                    drawRoundRect(cardSurfaceColor, topLeft, Size(cardWidth, cardHeight), CornerRadius(12*density))
                     drawRoundRect(color.copy(alpha = .5f), topLeft, Size(cardWidth, cardHeight), CornerRadius(12*density), style = Stroke(density))
                     drawCircle(color, 3*density, Offset(topLeft.x+13*density, topLeft.y+14*density))
                     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -197,7 +226,7 @@ private fun PaymentMap(nodes: List<GraphNodeItem>, edges: List<GraphEdgeItem>, r
                         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                     }
                     drawContext.canvas.nativeCanvas.drawText(n.nodeType.replace("CommitmentInsight", "Insight").uppercase(), topLeft.x+21*density, topLeft.y+17*density, paint)
-                    paint.textSize = 12*density; paint.color = android.graphics.Color.parseColor("#F4F7FB")
+                    paint.textSize = 12*density; paint.color = textPrimaryArgb
                     var label = n.name
                     while (paint.measureText(label) > cardWidth-22*density && label.length > 2) label = label.dropLast(2).trimEnd() + "\u2026"
                     drawContext.canvas.nativeCanvas.drawText(label, topLeft.x+11*density, topLeft.y+38*density, paint)

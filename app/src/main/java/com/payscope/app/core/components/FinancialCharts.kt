@@ -58,8 +58,9 @@ fun AnimatedCurrencyText(
     suffix: String = "",
     fontSize: Int = 28,
     fontWeight: FontWeight = FontWeight.Bold,
-    textColor: Color = TextPrimary
+    textColor: Color = Color.Unspecified
 ) {
+    val actualTextColor = if (textColor != Color.Unspecified) textColor else TextPrimary
     val animatedAmount by animateFloatAsState(
         targetValue = amount.toFloat(),
         animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
@@ -78,7 +79,7 @@ fun AnimatedCurrencyText(
         text = "$currencySymbol $formatted$suffix",
         fontSize = fontSize.sp,
         fontWeight = fontWeight,
-        color = textColor,
+        color = actualTextColor,
         letterSpacing = (-0.5).sp,
         modifier = modifier
     )
@@ -103,6 +104,10 @@ fun FinancialTrendChart(
 
     val maxAmount = points.maxOfOrNull { it.amount }?.takeIf { it > 0 } ?: 1.0
 
+    val secondaryCyanColor = SecondaryCyan
+    val primaryOrangeColor = PrimaryOrange
+    val borderSubtleColor = BorderSubtle
+
     Column(modifier = modifier) {
         Canvas(
             modifier = Modifier
@@ -121,13 +126,13 @@ fun FinancialTrendChart(
 
                 val barBrush = if (point.isProjected) {
                     Brush.verticalGradient(
-                        listOf(SecondaryCyan.copy(alpha = 0.9f), SecondaryCyan.copy(alpha = 0.2f)),
+                        listOf(secondaryCyanColor.copy(alpha = 0.9f), secondaryCyanColor.copy(alpha = 0.2f)),
                         startY = y,
                         endY = canvasHeight
                     )
                 } else {
                     Brush.verticalGradient(
-                        listOf(PrimaryOrange.copy(alpha = 0.95f), PrimaryOrange.copy(alpha = 0.25f)),
+                        listOf(primaryOrangeColor.copy(alpha = 0.95f), primaryOrangeColor.copy(alpha = 0.25f)),
                         startY = y,
                         endY = canvasHeight
                     )
@@ -135,7 +140,7 @@ fun FinancialTrendChart(
 
                 // Draw background track
                 drawRoundRect(
-                    color = BorderSubtle.copy(alpha = 0.35f),
+                    color = borderSubtleColor.copy(alpha = 0.35f),
                     topLeft = Offset(x - barWidth / 2, 0f),
                     size = Size(barWidth, canvasHeight),
                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())

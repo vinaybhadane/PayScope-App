@@ -24,8 +24,10 @@ class DataStoreManager @Inject constructor(
         val KEY_WORKSPACE_ID = stringPreferencesKey("workspace_id")
         val KEY_USER_EMAIL = stringPreferencesKey("user_email")
         val KEY_USER_NAME = stringPreferencesKey("user_name")
+        val KEY_USER_PHOTO_URL = stringPreferencesKey("user_photo_url")
         val KEY_IS_GUEST = booleanPreferencesKey("is_guest")
         val KEY_HAS_UPLOADED_STATEMENTS = booleanPreferencesKey("has_uploaded_statements")
+        val KEY_THEME_MODE = stringPreferencesKey("theme_mode") // "dark", "light", "system"
     }
 
     val workspaceIdFlow: Flow<String?> = context.dataStore.data.map { it[KEY_WORKSPACE_ID] }
@@ -33,7 +35,9 @@ class DataStoreManager @Inject constructor(
     val isGuestFlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_IS_GUEST] ?: false }
     val userEmailFlow: Flow<String?> = context.dataStore.data.map { it[KEY_USER_EMAIL] }
     val userNameFlow: Flow<String> = context.dataStore.data.map { it[KEY_USER_NAME] ?: "Your workspace" }
+    val userPhotoUrlFlow: Flow<String?> = context.dataStore.data.map { it[KEY_USER_PHOTO_URL] }
     val hasUploadedStatementsFlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_HAS_UPLOADED_STATEMENTS] ?: false }
+    val themeModeFlow: Flow<String> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: "dark" }
 
     suspend fun saveSession(
         token: String,
@@ -41,7 +45,8 @@ class DataStoreManager @Inject constructor(
         email: String,
         name: String,
         isGuest: Boolean,
-        hasUploaded: Boolean = false
+        hasUploaded: Boolean = false,
+        photoUrl: String? = null
     ) {
         context.dataStore.edit { prefs ->
             prefs[KEY_AUTH_TOKEN] = token
@@ -50,6 +55,18 @@ class DataStoreManager @Inject constructor(
             prefs[KEY_USER_NAME] = name
             prefs[KEY_IS_GUEST] = isGuest
             prefs[KEY_HAS_UPLOADED_STATEMENTS] = hasUploaded
+            if (photoUrl != null) {
+                prefs[KEY_USER_PHOTO_URL] = photoUrl
+            } else if (isGuest) {
+                prefs.remove(KEY_USER_PHOTO_URL)
+            }
+        }
+    }
+
+    suspend fun setUserPhotoUrl(url: String?) {
+        context.dataStore.edit { prefs ->
+            if (url != null) prefs[KEY_USER_PHOTO_URL] = url
+            else prefs.remove(KEY_USER_PHOTO_URL)
         }
     }
 
@@ -68,6 +85,12 @@ class DataStoreManager @Inject constructor(
     suspend fun setUserName(name: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_USER_NAME] = name
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_THEME_MODE] = mode
         }
     }
 

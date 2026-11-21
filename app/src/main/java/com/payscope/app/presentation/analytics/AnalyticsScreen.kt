@@ -79,14 +79,16 @@ import com.payscope.app.domain.model.DateRangeFilter
 import com.payscope.app.domain.model.MerchantComparison
 import com.payscope.app.presentation.graph.RelationshipGraphScreen
 
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.IconButton
+
 @Composable
 fun AnalyticsScreen(
-    initialTab: Int = 0,
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: AnalyticsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.reload() }
-    var activeTab by remember { mutableIntStateOf(initialTab) } // 0 = Spend Analytics, 1 = Neo4j Graph
 
     Box(
         modifier = Modifier
@@ -107,120 +109,54 @@ fun AnalyticsScreen(
             .statusBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Screen Header
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    com.payscope.app.core.components.PayScopeLogo(size = 42.dp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = if (activeTab == 0) "Spending Intelligence" else "Payment connections",
-                            color = TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (activeTab == 0) "Actual statement spending & payment patterns" else "Follow each payment back to its evidence",
-                            color = TextSecondary,
-                            fontSize = 12.sp
+            // Screen Header: Dedicated financial spending intelligence (Requirement 6: Graph moved to dedicated Home feature)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onNavigateBack != null) {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TextPrimary
                         )
                     }
+                    Spacer(modifier = Modifier.width(6.dp))
+                } else {
+                    com.payscope.app.core.components.PayScopeLogo(size = 40.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Segmented Tab Switcher
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ElevatedCardSurface)
-                        .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp))
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Spend Analytics Tab
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (activeTab == 0) PrimaryOrange else Color.Transparent)
-                            .clickable { activeTab = 0 }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Assessment,
-                                contentDescription = null,
-                                tint = if (activeTab == 0) TextPrimary else TextSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Analytics",
-                                color = if (activeTab == 0) TextPrimary else TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-
-                    // Neo4j Graph Tab
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (activeTab == 1) SecondaryCyan else Color.Transparent)
-                            .clickable { activeTab = 1 }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Hub,
-                                contentDescription = null,
-                                tint = if (activeTab == 1) DeepBackground else TextSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Neo4j Graph",
-                                color = if (activeTab == 1) DeepBackground else TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Spending Intelligence",
+                        color = TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Statement spending trends & patterns",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
                 }
             }
 
-            if (activeTab == 1) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    RelationshipGraphScreen()
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = SecondaryCyan, strokeWidth = 3.dp)
                 }
             } else {
-                if (uiState.isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = SecondaryCyan, strokeWidth = 3.dp)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 96.dp)
-                    ) {
-                        // Date Filters Horizontal Bar
-                uiState.errorMessage?.let { message -> item {
-                    com.payscope.app.core.components.StatusMessage(message) { viewModel.reload() }
-                } }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 120.dp)
+                ) {
+                    uiState.errorMessage?.let { message -> item {
+                        com.payscope.app.core.components.StatusMessage(message) { viewModel.reload() }
+                    } }
                 item {
                     Row(
                         modifier = Modifier
@@ -444,7 +380,6 @@ fun AnalyticsScreen(
             }
         }
     }
-}
 }
 }
 

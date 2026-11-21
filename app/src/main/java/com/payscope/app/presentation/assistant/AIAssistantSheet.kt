@@ -298,7 +298,7 @@ private fun ChatBubble(message: ChatMessage) {
         ) {
             Text(
                 text = message.content,
-                color = Color.White,
+                color = if (message.isUser) Color.White else TextPrimary,
                 fontSize = 13.sp,
                 lineHeight = 19.sp
             )

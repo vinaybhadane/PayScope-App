@@ -7,7 +7,8 @@ data class UserSession(
     val workspaceId: String,
     val isGuest: Boolean,
     val token: String,
-    val hasUploadedStatements: Boolean = false
+    val hasUploadedStatements: Boolean = false,
+    val photoUrl: String? = null
 )
 
 data class FinancialSummary(

@@ -1,9 +1,6 @@
 package com.payscope.app.core.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,21 +12,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Savings
-import androidx.compose.material.icons.outlined.Subscriptions
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +43,7 @@ import com.payscope.app.core.theme.BorderSubtle
 import com.payscope.app.core.theme.CardSurface
 import com.payscope.app.core.theme.ElevatedCardSurface
 import com.payscope.app.core.theme.PrimaryOrange
+import com.payscope.app.core.theme.PrimaryOrangeHover
 import com.payscope.app.core.theme.SecondaryCyan
 import com.payscope.app.core.theme.TextMuted
 import com.payscope.app.core.theme.TextPrimary
@@ -59,7 +54,8 @@ import com.payscope.app.core.util.bounceClick
 fun PayScopeHeader(
     greeting: String = "Good morning",
     userName: String = "Alex",
-    unreadAlertsCount: Int = 2,
+    photoUrl: String? = null,
+    unreadAlertsCount: Int = 0,
     onSearchClick: () -> Unit = {},
     onAlertsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
@@ -72,9 +68,9 @@ fun PayScopeHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Logo & Greeting
+        // Logo & Greeting (aligned on the left)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PayScopeLogo(size = 42.dp)
+            PayScopeLogo(size = 40.dp)
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -94,114 +90,56 @@ fun PayScopeHeader(
             }
         }
 
-        // Action Icons
+        // Action Icons & Profile on top-right (no duplicate PayScope logo)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Search button
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(ElevatedCardSurface)
-                    .border(1.dp, BorderSubtle, CircleShape)
-                    .bounceClick(onClick = onSearchClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            // Notifications button with badge
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(ElevatedCardSurface)
-                    .border(1.dp, BorderSubtle, CircleShape)
-                    .bounceClick(onClick = onAlertsClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notifications",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-
-                if (unreadAlertsCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = (-2).dp, y = 2.dp)
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(PrimaryOrange)
-                    )
-                }
-            }
-
-            // User Avatar
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(listOf(Color(0xFF00E0E0), Color(0xFF008B8B)))
-                    )
-                    .border(1.5.dp, SecondaryCyan, CircleShape)
-                    .bounceClick(onClick = onProfileClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = userName.firstOrNull()?.uppercase() ?: "U",
-                    color = Color(0xFF040711),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-            }
+            // Profile / User Avatar placed in top-right corner
+            UserAvatar(
+                photoUrl = photoUrl,
+                onClick = onProfileClick,
+                size = 42.dp
+            )
         }
     }
 }
 
 enum class NavigationTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Outlined.Home),
-    ANALYTICS("Analytics", Icons.Outlined.Assessment),
-    SUBSCRIPTIONS("Subs", Icons.Outlined.Subscriptions),
-    SAVINGS("Savings", Icons.Outlined.Savings),
-    PROFILE("Profile", Icons.Outlined.Person)
+    SEARCH("Search", Icons.Outlined.Search),
+    AI("PayScope AI", Icons.Default.AutoAwesome),
+    ALERTS("Alerts", Icons.Outlined.Notifications),
+    HISTORY("History", Icons.Outlined.History)
 }
 
 @Composable
 fun PayScopeFloatingBottomBar(
     currentTab: NavigationTab,
     onTabSelected: (NavigationTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    unreadAlertsCount: Int = 0
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         // Floating pill dock
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(64.dp)
                 .shadow(
-                    elevation = 24.dp,
-                    shape = RoundedCornerShape(31.dp),
-                    spotColor = Color.Black.copy(alpha = 0.7f)
+                    elevation = 20.dp,
+                    shape = RoundedCornerShape(32.dp),
+                    spotColor = Color.Black.copy(alpha = 0.6f)
                 )
-                .clip(RoundedCornerShape(31.dp))
-                .background(CardSurface.copy(alpha = 0.95f))
-                .border(1.dp, BorderSubtle, RoundedCornerShape(31.dp))
+                .clip(RoundedCornerShape(32.dp))
+                .background(CardSurface.copy(alpha = 0.96f))
+                .border(1.dp, BorderSubtle, RoundedCornerShape(32.dp))
                 .padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -213,50 +151,102 @@ fun PayScopeFloatingBottomBar(
                 NavigationTab.entries.forEach { tab ->
                     val isSelected = tab == currentTab
 
-                    val animatedIconTint by animateColorAsState(
-                        targetValue = if (isSelected) PrimaryOrange else TextMuted,
-                        label = "tabIconTint"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { onTabSelected(tab) }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                    if (tab == NavigationTab.AI) {
+                        // Prominent elevated centered AI Assistant action (Screenshot 1 inspired)
+                        Box(
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .height(64.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { onTabSelected(tab) }
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.label,
-                                tint = animatedIconTint,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = tab.label,
-                                color = if (isSelected) TextPrimary else TextMuted,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            // Sleek micro-indicator capsule under active tab
                             Box(
                                 modifier = Modifier
-                                    .width(16.dp)
-                                    .height(2.5.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(if (isSelected) PrimaryOrange else Color.Transparent)
-                            )
+                                    .size(52.dp)
+                                    .shadow(
+                                        elevation = 12.dp,
+                                        shape = CircleShape,
+                                        spotColor = PrimaryOrange.copy(alpha = 0.5f)
+                                    )
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                PrimaryOrange,
+                                                PrimaryOrangeHover
+                                            )
+                                        )
+                                    )
+                                    .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "PayScope AI Assistant",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        val animatedIconTint by animateColorAsState(
+                            targetValue = if (isSelected) PrimaryOrange else TextMuted,
+                            label = "tabIconTint"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { onTabSelected(tab) }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(contentAlignment = Alignment.TopEnd) {
+                                    Icon(
+                                        imageVector = tab.icon,
+                                        contentDescription = tab.label,
+                                        tint = animatedIconTint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    if (tab == NavigationTab.ALERTS && unreadAlertsCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(PrimaryOrange)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = tab.label,
+                                    color = if (isSelected) TextPrimary else TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(16.dp)
+                                        .height(2.dp)
+                                        .clip(RoundedCornerShape(1.dp))
+                                        .background(if (isSelected) PrimaryOrange else Color.Transparent)
+                                )
+                            }
                         }
                     }
                 }

@@ -106,6 +106,7 @@ class AuthViewModel @Inject constructor(
                 val idToken = account.idToken
                 val email = account.email ?: "user@payscope.app"
                 val displayName = account.displayName ?: email
+                val googlePhotoUrl = account.photoUrl?.toString()
 
                 check(!idToken.isNullOrBlank()) { "Google did not return an identity token. Please retry." }
                 val firebaseAuth = FirebaseAuth.getInstance()
@@ -128,7 +129,8 @@ class AuthViewModel @Inject constructor(
                 val sessionResult = authRepository.handleGoogleSignInSuccess(
                     idToken = verifiedToken,
                     email = email,
-                    displayName = displayName
+                    displayName = displayName,
+                    photoUrl = googlePhotoUrl ?: firebaseUser.photoUrl?.toString()
                 )
 
                 _uiState.value = _uiState.value.copy(isLoadingGoogle = false)
