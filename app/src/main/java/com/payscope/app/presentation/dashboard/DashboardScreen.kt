@@ -127,16 +127,17 @@ fun DashboardScreen(
                     }
                 }
 
-                // 2. Monthly Recurring Spend Card (Addendum 03 - Req 4: Above feature options, theme-specific styling)
+                // 2. Monthly Recurring Spend Card (Theme-specific: Cyan in Light, Orange in Dark)
                 item {
-                    val cardBorder = if (isDark) BorderHighlight else BorderCyanHighlight
+                    val cardBg = if (isDark) Color(0xFF1B140E) else Color(0xFFE8F6FD)
+                    val cardBorder = if (isDark) PrimaryOrange.copy(alpha = 0.45f) else SecondaryCyan.copy(alpha = 0.45f)
                     val cardGlow = if (isDark) GlowOrange else GlowCyan
-                    val badgeTint = if (isDark) PrimaryOrange else SecondaryCyan
-                    val badgeBg = if (isDark) PrimaryOrange.copy(alpha = 0.12f) else SecondaryCyan.copy(alpha = 0.12f)
+                    val accentColor = if (isDark) PrimaryOrange else SecondaryCyan
 
                     PayScopeGlassCard(
                         modifier = Modifier.fillMaxWidth(),
                         cornerRadius = 26.dp,
+                        backgroundColor = cardBg,
                         borderColor = cardBorder,
                         glowColor = cardGlow
                     ) {
@@ -147,19 +148,19 @@ fun DashboardScreen(
                         ) {
                             Text(
                                 text = "Monthly recurring spend",
-                                color = TextSecondary,
+                                color = accentColor,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
                             Box(
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .background(badgeBg)
+                                    .background(accentColor.copy(alpha = 0.16f))
                                     .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = "${state.summary.activeSubscriptionsCount} active",
-                                    color = badgeTint,
+                                    color = accentColor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -182,7 +183,7 @@ fun DashboardScreen(
                             modifier = Modifier.padding(top = 4.dp)
                         )
 
-                        HorizontalDivider(Modifier.padding(vertical = 16.dp), color = BorderSubtle)
+                        HorizontalDivider(Modifier.padding(vertical = 16.dp), color = accentColor.copy(alpha = 0.20f))
 
                         Row(Modifier.fillMaxWidth()) {
                             Column(Modifier.weight(1f)) {
@@ -199,7 +200,7 @@ fun DashboardScreen(
                                 Text("Savings scenarios / yr", color = TextMuted, fontSize = 11.sp)
                                 Text(
                                     text = money(state.summary.potentialSavingsAnnual),
-                                    color = SavingsTeal,
+                                    color = accentColor,
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(top = 4.dp)
@@ -296,7 +297,7 @@ fun DashboardScreen(
                             onClick = { viewModel.onUploadStatementClicked() },
                             modifier = Modifier.fillMaxWidth(),
                             icon = Icons.Default.Add,
-                            variant = ButtonVariant.SECONDARY
+                            variant = ButtonVariant.PRIMARY
                         )
                     }
 
@@ -350,23 +351,6 @@ fun DashboardScreen(
                             Text("Where your money goes", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(18.dp))
                             CategoryDistributionView(categories = state.categories)
-                        }
-                    }
-
-                    if (state.upcoming.isNotEmpty()) item {
-                        PayScopeGlassCard(Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
-                            Text("Coming up", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Estimated from your payment history", color = TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
-                            state.upcoming.take(4).forEach { bill ->
-                                Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    BrandLogoView(bill.logoKey, bill.merchantName, size = 34.dp)
-                                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                        Text(bill.merchantName, color = TextPrimary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(bill.dueDate, color = TextMuted, fontSize = 10.sp)
-                                    }
-                                    Text(money(bill.amount), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
                         }
                     }
 
