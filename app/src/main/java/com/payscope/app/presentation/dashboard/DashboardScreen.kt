@@ -117,9 +117,9 @@ fun DashboardScreen(
                             Text(
                                 text = welcomeHeading,
                                 color = TextPrimary,
-                                fontSize = 24.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.6).sp,
+                                letterSpacing = (-0.4).sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -127,16 +127,16 @@ fun DashboardScreen(
                     }
                 }
 
-                // 2. Monthly Recurring Spend Card (Theme-specific: Cyan in Light, Orange in Dark)
+                // 2. Monthly Recurring Spend Card (Theme-specific: Darker Cyan in Light, Orange in Dark, Sharper Edges)
                 item {
-                    val cardBg = if (isDark) Color(0xFF1B140E) else Color(0xFFE8F6FD)
-                    val cardBorder = if (isDark) PrimaryOrange.copy(alpha = 0.45f) else SecondaryCyan.copy(alpha = 0.45f)
+                    val cardBg = if (isDark) Color(0xFF1B140E) else Color(0xFFD3EEF9)
+                    val cardBorder = if (isDark) PrimaryOrange.copy(alpha = 0.45f) else Color(0xFF0284C7).copy(alpha = 0.55f)
                     val cardGlow = if (isDark) GlowOrange else GlowCyan
-                    val accentColor = if (isDark) PrimaryOrange else SecondaryCyan
+                    val accentColor = if (isDark) PrimaryOrange else Color(0xFF0369A1)
 
                     PayScopeGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 26.dp,
+                        cornerRadius = 14.dp,
                         backgroundColor = cardBg,
                         borderColor = cardBorder,
                         glowColor = cardGlow

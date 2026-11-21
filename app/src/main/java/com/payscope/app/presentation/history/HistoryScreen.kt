@@ -2,6 +2,11 @@ package com.payscope.app.presentation.history
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -204,25 +209,7 @@ fun HistoryScreen(
                                     .size(18.dp)
                                     .clickable { viewModel.onSearchQueryChanged("") }
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
-
-                        Box(
-                            modifier = Modifier
-                                .height(20.dp)
-                                .width(1.dp)
-                                .background(BorderSubtle)
-                                .padding(horizontal = 4.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Filter",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
                     }
                 }
 
@@ -374,7 +361,7 @@ fun HistoryScreen(
                                 .clip(RoundedCornerShape(18.dp))
                                 .background(CardSurface)
                                 .border(1.dp, if (isExpanded) BorderHighlight else BorderSubtle, RoundedCornerShape(18.dp))
-                                .animateContentSize()
+                                .animateContentSize(animationSpec = tween(durationMillis = 150))
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 // Statement Row (Screenshot 2 pattern)
@@ -441,8 +428,12 @@ fun HistoryScreen(
                                     }
                                 }
 
-                                // Expandable Statement Summary (Requirement 2.D)
-                                AnimatedVisibility(visible = isExpanded) {
+                                // Expandable Statement Summary (Requirement 2.D) - Fast 150ms expand/contract
+                                AnimatedVisibility(
+                                    visible = isExpanded,
+                                    enter = fadeIn(animationSpec = tween(100)) + expandVertically(animationSpec = tween(150)),
+                                    exit = fadeOut(animationSpec = tween(100)) + shrinkVertically(animationSpec = tween(150))
+                                ) {
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
