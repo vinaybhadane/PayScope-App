@@ -53,6 +53,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -96,9 +99,14 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    var isManualRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadHistory()
+    }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) isManualRefreshing = false
     }
 
     val filteredStatements = state.statements.filter {
@@ -127,8 +135,11 @@ fun HistoryScreen(
             .statusBarsPadding()
     ) {
         PullToRefreshBox(
-            isRefreshing = state.isLoading,
-            onRefresh = { viewModel.loadHistory(forceRefresh = true) },
+            isRefreshing = isManualRefreshing && state.isLoading,
+            onRefresh = {
+                isManualRefreshing = true
+                viewModel.loadHistory(forceRefresh = true)
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(

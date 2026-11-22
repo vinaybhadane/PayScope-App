@@ -46,6 +46,11 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showAllTransactions by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var isManualRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) isManualRefreshing = false
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadDashboardData()
@@ -69,8 +74,11 @@ fun DashboardScreen(
             .statusBarsPadding()
     ) {
         PullToRefreshBox(
-            isRefreshing = state.isLoading && state.hasLoaded,
-            onRefresh = { viewModel.loadDashboardData(forceRefresh = true) },
+            isRefreshing = isManualRefreshing && state.isLoading,
+            onRefresh = {
+                isManualRefreshing = true
+                viewModel.loadDashboardData(forceRefresh = true)
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
@@ -116,9 +124,9 @@ fun DashboardScreen(
                             Text(
                                 text = welcomeHeading,
                                 color = TextPrimary,
-                                fontSize = 24.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.4).sp,
+                                letterSpacing = (-0.3).sp,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -381,18 +389,18 @@ private fun QuickActionItem(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .heightIn(min = 64.dp)
-            .padding(vertical = 8.dp, horizontal = 2.dp),
+            .heightIn(min = 68.dp)
+            .padding(vertical = 6.dp, horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                .background(PrimaryOrange.copy(alpha = .10f))
-                .border(1.dp, PrimaryOrange.copy(alpha = .12f), RoundedCornerShape(14.dp)),
+            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp))
+                .background(PrimaryOrange.copy(alpha = .12f))
+                .border(1.dp, PrimaryOrange.copy(alpha = .18f), RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = PrimaryOrange, modifier = Modifier.size(21.dp))
+            Icon(icon, null, tint = PrimaryOrange, modifier = Modifier.size(30.dp))
         }
         Text(label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             lineHeight = 18.sp, modifier = Modifier.weight(1f))
