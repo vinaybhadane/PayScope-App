@@ -46,7 +46,6 @@ class GraphElements(BaseModel):
 
 
 class GraphHealthResponse(BaseModel):
-    diagnostic_code: Optional[str] = None
     status: str
     enabled: bool
     connected: bool

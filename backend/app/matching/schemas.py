@@ -84,6 +84,10 @@ class MerchantResponse(BaseModel):
     category: str
     commitment_type_default: Optional[str] = None
     website_url: Optional[str] = None
+    domain: Optional[str] = None
+    logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
+    verification_status: str = "unverified"
     support_url: Optional[str] = None
     is_fictional_demo_merchant: bool
     reference_source: Optional[str] = None

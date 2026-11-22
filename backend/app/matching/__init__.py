@@ -4,6 +4,7 @@ from app.matching.normalizer import DescriptorNormalizer
 from app.matching.resolver import MerchantResolver
 from app.matching.reprocessor import TransactionReprocessor
 from app.matching.review_service import ReviewService
+from app.matching.merchant_logo_service import MerchantLogoService, ResolvedMerchantMetadata
 
 __all__ = [
     "DEFAULT_MATCHING_CONFIG",
@@ -12,4 +13,6 @@ __all__ = [
     "MerchantResolver",
     "TransactionReprocessor",
     "ReviewService",
+    "MerchantLogoService",
+    "ResolvedMerchantMetadata",
 ]

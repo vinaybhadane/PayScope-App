@@ -1,6 +1,7 @@
 """CSV file parser with encoding and delimiter auto-detection."""
 import csv
 import io
+from app.ingestion.tabular import statement_matrix
 from typing import Any, Dict, List, Tuple
 
 
@@ -12,7 +13,8 @@ class CSVParser:
         """Decode and parse CSV content."""
         # Try UTF-8-sig (handles UTF-8 with BOM), fallback to UTF-8, then latin-1
         text = None
-        for enc in ("utf-8-sig", "utf-8", "latin-1"):
+        encodings = ("utf-16",) if content.startswith((b"\xff\xfe", b"\xfe\xff")) else ("utf-8-sig", "utf-8", "cp1252", "latin-1")
+        for enc in encodings:
             try:
                 text = content.decode(enc)
                 break
@@ -23,13 +25,17 @@ class CSVParser:
             raise ValueError("Unable to decode CSV file with supported encodings (UTF-8, Latin-1).")
 
         # Detect delimiter using Sniffer, fallback to comma
-        sample = text[:4096]
+        sample = "\n".join(line for line in text.splitlines() if any(word in line.lower() for word in ("date", "description", "narration", "amount", "debit", "credit")))[:8192]
         try:
             sniffer = csv.Sniffer()
             dialect = sniffer.sniff(sample, delimiters=",\t;|")
         except Exception:
             dialect = csv.excel
 
+        matrix = list(csv.reader(io.StringIO(text), dialect=dialect))
+        headers, rows = statement_matrix(matrix)
+        if headers:
+            return headers, rows
         reader = csv.DictReader(io.StringIO(text), dialect=dialect)
         headers = [h.strip() for h in (reader.fieldnames or []) if h is not None]
         rows: List[Dict[str, Any]] = []

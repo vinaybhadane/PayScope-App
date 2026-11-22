@@ -9,6 +9,7 @@ from app.analytics.cancellations.config import ALL_PLAYBOOKS
 from app.analytics.cancellations.instruction_builder import build_cancellation_checklist
 from app.analytics.cancellations.mechanism_classifier import classify_payment_mechanism
 from app.analytics.cancellations.playbook_resolver import resolve_playbook
+from app.analytics.cancellations.statement_evidence import mark_ended
 from app.analytics.cancellations.schemas import (
     CancellationCaseResponse,
     CancellationCaseStatus,
@@ -241,6 +242,11 @@ class CancellationOrchestrator:
             self.db.add(canc_event)
             self.db.flush()
             case.cancellation_event_id = canc_event.id
+        else:
+            case.cancellation_event.event_timestamp = case.user_reported_at
+
+        if case.commitment:
+            mark_ended(case.commitment, case.user_reported_at)
 
         self.db.commit()
         self.db.refresh(case)

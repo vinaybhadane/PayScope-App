@@ -33,6 +33,18 @@ def intelligence(db: Session = Depends(get_db)):
             'generated_at': state.generated_at if state else None, 'report': state.report if state else None,
             'error': state.error if state else None}
 
+@router.post('/graph-review')
+def graph_review(db: Session = Depends(get_db)):
+    from app.analytics.ai_review import GraphReviewError, review_with_neo4j
+    from app.graph.exceptions import Neo4jError
+
+    try:
+        return review_with_neo4j(db, owner(db))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except (GraphReviewError, Neo4jError) as exc:
+        raise HTTPException(503, str(exc)) from exc
+
 @router.get('/report.pdf')
 def report_pdf(db: Session = Depends(get_db)):
     state = db.get(WorkspaceIntelligence, owner(db))

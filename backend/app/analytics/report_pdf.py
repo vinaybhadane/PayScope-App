@@ -17,7 +17,7 @@ def build_report_pdf(state: WorkspaceIntelligence) -> bytes:
     demo_report = state.model == 'predefined-demo-v1'
     story = [Paragraph('PayScope | Sample subscription report' if demo_report else 'PayScope | Subscription report', styles['Title']), Spacer(1, 5*mm),
              p(f'Generated: {state.generated_at.isoformat() if state.generated_at else "Pending"}'),
-             p(f'{"Demo analysis" if demo_report else "AI review"}: {state.model} | Debit records: {state.report.get("transaction_count", 0)}'),
+             p(f'{"Demo analysis" if demo_report else "Statement analysis"}: {state.model} | Debit records: {state.report.get("transaction_count", 0)}'),
              p(state.report.get('overview', ''))]
     period_labels = {
         'weekly': 'Weekly', 'fortnightly': 'Every 2 weeks', 'monthly': 'Monthly',
@@ -37,7 +37,7 @@ def build_report_pdf(state: WorkspaceIntelligence) -> bytes:
         story.extend([Paragraph(escape(sub['name']), styles['Heading3']), p(sub['explanation'])])
         for insight in sub.get('insights', []): story.append(p(f'{insight["title"]}: {insight["summary"]}'))
         if sub.get('savings_recommendation'): story.append(p(sub['savings_recommendation']))
-    story.extend([Paragraph('Evidence and limitations', styles['Heading2']), p('Amounts are taken from uploaded records. Recurrence, future payment dates and savings scenarios are estimates. AI review does not verify usage or cancel services.')])
+    story.extend([Paragraph('Evidence and limitations', styles['Heading2']), p('Amounts are taken from uploaded records. Recurrence, future payment dates and savings scenarios are estimates. Statement analysis does not verify usage or cancel services.')])
     story.extend(p(item) for item in state.report.get('limitations', []))
     def footer(canvas, document):
         canvas.setFont('Helvetica', 8)

@@ -14,6 +14,8 @@ SCHEMA_CONSTRAINTS = [
     "CREATE CONSTRAINT commitment_id_unique IF NOT EXISTS FOR (c:Commitment) REQUIRE c.id IS UNIQUE",
     "CREATE CONSTRAINT insight_id_unique IF NOT EXISTS FOR (i:CommitmentInsight) REQUIRE i.id IS UNIQUE",
     "CREATE CONSTRAINT cancellation_id_unique IF NOT EXISTS FOR (ce:CancellationEvent) REQUIRE ce.id IS UNIQUE",
+    "CREATE CONSTRAINT merchant_descriptor_id IF NOT EXISTS FOR (d:MerchantDescriptor) REQUIRE d.id IS UNIQUE",
+    "CREATE CONSTRAINT mandate_ref IF NOT EXISTS FOR (m:Mandate) REQUIRE m.reference IS UNIQUE",
 ]
 
 SCHEMA_INDEXES = [
@@ -25,6 +27,8 @@ SCHEMA_INDEXES = [
             "Commitment",
             "CommitmentInsight",
             "CancellationEvent",
+            "MerchantDescriptor",
+            "Mandate",
         )
     ],
     "CREATE INDEX user_workspace_idx IF NOT EXISTS FOR (u:User) ON (u.workspace_key)",
@@ -50,3 +54,22 @@ def initialize_graph_schema(driver: Driver, database: str = "neo4j") -> None:
             except Exception as e:
                 logger.warning(f"Could not apply index '{stmt}': {e}")
                 raise
+
+
+def main():
+    """Apply additive constraints before enabling live writes in an environment."""
+    from app.graph.config import neo4j_settings
+    from app.graph.driver import check_neo4j_connection, close_neo4j_driver, get_neo4j_driver
+
+    logging.basicConfig(level=logging.INFO)
+    try:
+        if not check_neo4j_connection():
+            raise SystemExit("Neo4j migrations require a reachable, enabled connection.")
+        initialize_graph_schema(get_neo4j_driver(), neo4j_settings.DATABASE)
+        print("Neo4j constraints and indexes applied.")
+    finally:
+        close_neo4j_driver()
+
+
+if __name__ == "__main__":
+    main()

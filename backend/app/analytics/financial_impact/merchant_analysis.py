@@ -34,6 +34,9 @@ def get_user_merchant_analysis(
             merchant_groups[m_id] = {
                 "name": item.merchant_name,
                 "merchant_id": item.merchant_id,
+                "domain": getattr(item, "merchant_domain", None),
+                "logo_url": getattr(item, "merchant_logo_url", None),
+                "logo_source": getattr(item, "logo_source", None),
                 "category": item.category or item.commitment_type,
                 "monthly": Decimal("0.00"),
                 "annual": Decimal("0.00"),
@@ -83,6 +86,9 @@ def get_user_merchant_analysis(
             MerchantCostRanking(
                 merchant_id=grp['merchant_id'],
                 merchant_name=grp["name"] or "Unresolved Merchant",
+                merchant_domain=grp.get("domain"),
+                merchant_logo_url=grp.get("logo_url"),
+                logo_source=grp.get("logo_source"),
                 category=grp["category"],
                 monthly_cost=round_currency(grp["monthly"]),
                 annualized_cost=round_currency(grp["annual"]),

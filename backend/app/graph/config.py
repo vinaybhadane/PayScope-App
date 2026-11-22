@@ -1,32 +1,22 @@
-"""Configuration settings for Neo4j Graph Intelligence."""
+"""Environment configuration for the derived Neo4j projection."""
 
-import os
 from pathlib import Path
-from dotenv import load_dotenv
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Ensure .env is resolved regardless of working directory
-for candidate in [
-    Path.cwd() / ".env",
-    Path(__file__).resolve().parents[2] / ".env",
-    Path(__file__).resolve().parents[3] / ".env",
-]:
-    if candidate.exists():
-        load_dotenv(candidate, override=False)
+_root = Path(__file__).resolve().parents[4]
 
 
 class Neo4jSettings(BaseSettings):
-    ENABLED: bool = os.getenv("NEO4J_ENABLED", "true").lower() in ("true", "1", "yes")
-    URI: str = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
-    USERNAME: str = os.getenv("NEO4J_USERNAME", "neo4j")
-    PASSWORD: str = os.getenv("NEO4J_PASSWORD", "payscope_password")
-    DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
-    MAX_CONNECTION_LIFETIME: int = int(
-        os.getenv("NEO4J_MAX_CONNECTION_LIFETIME", "3600")
-    )
-    MAX_CONNECTION_POOL_SIZE: int = int(
-        os.getenv("NEO4J_MAX_CONNECTION_POOL_SIZE", "50")
-    )
+    ENABLED: bool = False
+    REQUIRED: bool = False
+    URI: str = ""
+    USERNAME: str = Field(default="", validation_alias=AliasChoices("NEO4J_USER", "NEO4J_USERNAME"))
+    PASSWORD: str = Field(default="", repr=False)
+    DATABASE: str = "neo4j"
+    MAX_CONNECTION_LIFETIME: int = 3600
+    MAX_CONNECTION_POOL_SIZE: int = 50
     CONNECTION_TIMEOUT: float = 3.0
     CONNECTION_ACQUISITION_TIMEOUT: float = 4.0
     QUERY_TIMEOUT: float = 4.0
@@ -35,8 +25,10 @@ class Neo4jSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="NEO4J_",
-        env_file=(".env", "../.env"),
+        env_file=(_root / ".env", _root / "apps/api/.env"),
+        env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
 

@@ -24,7 +24,6 @@ from app.graph.schemas import (
     GraphElements,
     GraphNode,
     GraphNodeData,
-    GraphSummaryResponse,
 )
 from app.models.commitment import Commitment
 from app.models.commitment_insight import CommitmentInsight
@@ -343,29 +342,3 @@ class GraphQueryService:
                 edges[f"{c_id}_{t_id}"] = self._convert_edge(c_id, t_id, "SUPPORTED_BY", "supported by")
 
         return GraphElements(nodes=list(nodes.values()), edges=list(edges.values()))
-
-    def get_summary(self) -> GraphSummaryResponse:
-        """Returns node and relationship counts from Neo4j or PostgreSQL fallback."""
-        # Relational fallback
-        try:
-            merchants_count = self.db.query(Merchant).count()
-            commitments_count = self.db.query(Commitment).count()
-            transactions_count = self.db.query(Transaction).count()
-            insights_count = self.db.query(CommitmentInsight).count()
-        except Exception as exc:
-            logger.warning("PostgreSQL count failed: %s", exc)
-            merchants_count = commitments_count = transactions_count = insights_count = 0
-
-        total_nodes = merchants_count + commitments_count + min(transactions_count, 100) + insights_count + 1
-        return GraphSummaryResponse(
-            total_nodes=total_nodes,
-            total_relationships=commitments_count * 2 + insights_count,
-            counts_by_label={
-                "Merchant": merchants_count,
-                "Commitment": commitments_count,
-                "Transaction": min(transactions_count, 100),
-                "CommitmentInsight": insights_count,
-            },
-            counts_by_relationship={},
-            last_sync_timestamp=None,
-        )

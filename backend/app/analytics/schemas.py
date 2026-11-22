@@ -36,6 +36,10 @@ class CommitmentResponse(CommitmentBase):
     id: uuid.UUID
     user_id: uuid.UUID
     merchant_id: Optional[uuid.UUID] = None
+    merchant_name: Optional[str] = None
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     transaction_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -89,10 +93,7 @@ class CommitmentTimelineResponse(BaseModel):
 
 class CommitmentUpdateRequest(BaseModel):
     """User correction request payload for a commitment."""
-    display_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    category: Optional[str] = Field(None, min_length=1, max_length=100)
-    representative_amount: Optional[Decimal] = Field(None, gt=0)
-    status: Optional[str] = None
+    display_name: Optional[str] = None
     commitment_type: Optional[str] = None  # subscription, membership, utility, insurance, loan_emi, other
     cadence: Optional[str] = None          # weekly, fortnightly, monthly, quarterly, annual, variable_monthly, irregular
 

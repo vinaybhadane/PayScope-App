@@ -1,10 +1,11 @@
 """Schema normalizer and row validator for transactions and notifications."""
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 from dateutil import parser as date_parser
+from app.core.ai_security import clean_invisible, log_quarantine, text_risks
 
 
 @dataclass
@@ -32,6 +33,7 @@ class NormalizedRowResult:
     valid_records: List[Dict[str, Any]]
     errors: List[RowError]
     total_rows: int
+    quarantined_records: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class SchemaNormalizer:
@@ -46,96 +48,108 @@ class SchemaNormalizer:
         """Normalize bank statement rows using provided column mapping."""
         valid_records: List[Dict[str, Any]] = []
         errors: List[RowError] = []
+        quarantined_records = []
 
-        date_col = mapping.get("transaction_date")
-        desc_col = mapping.get("raw_descriptor")
-        amount_col = mapping.get("amount")
-        curr_col = mapping.get("currency")
-        dir_col = mapping.get("direction")
-        channel_col = mapping.get("payment_channel")
-        ref_col = mapping.get("payment_reference")
-        ext_id_col = mapping.get("external_synthetic_id")
+        from collections import Counter
+        import json
+        import re
+        from app.ingestion.statement_values import money, statement_date, direction as parse_direction
 
+        base_mapping = mapping
+        occurrences = Counter()
         for row in rows:
+            mapping = {**row.get("_column_mapping", {}),
+                       **{key: value for key, value in base_mapping.items() if value in row or key.startswith("_")}}
+            for key in base_mapping.get("_disabled_targets", "").split(","):
+                mapping.pop(key, None)
+            date_col = mapping.get("transaction_date")
+            desc_col = mapping.get("raw_descriptor")
             row_num = row.get("_row_number", 0)
-            row_errors: List[RowError] = []
-
-            # 1. Parse Description (Raw Descriptor)
-            raw_desc = str(row.get(desc_col, "")).strip() if desc_col else ""
+            raw_desc = str(row.get(desc_col) or "").strip()
+            reasons = list(row.get("_ocr_security", {}).get("reasons", []))
+            for key, value in row.items():
+                if not key.startswith("_") and isinstance(value, str):
+                    reasons.extend(text_risks(value, descriptor=key == desc_col and bool(raw_desc)))
+            if reasons:
+                reasons = sorted(set(reasons))
+                log_quarantine(raw_desc, reasons, row=row_num)
+                quarantined_records.append({"row": row_num, "descriptor": clean_invisible(raw_desc)[:120],
+                                            "reasons": reasons, "source": row})
+                errors.append(RowError(row_num, desc_col or "raw_descriptor", "[QUARANTINED]", "Manual review required: " + ", ".join(reasons)))
+                continue
+            if row.get("_parse_error"):
+                errors.append(RowError(row_num, "amount", row.get("_raw_line", ""), row["_parse_error"]))
+                continue
+            row_errors = []
             if not raw_desc:
                 row_errors.append(RowError(row_num, desc_col or "raw_descriptor", "", "Description cannot be empty."))
+            parsed_date = None
+            try:
+                parsed_date = statement_date(row.get("_raw_date", row.get(date_col)), mapping.get("_date_order", "dayfirst"))
+            except (ValueError, TypeError, OverflowError) as exc:
+                row_errors.append(RowError(row_num, date_col or "transaction_date", row.get(date_col), f"Invalid date: {exc}"))
 
-            # 2. Parse Date
-            raw_date_val = row.get(date_col)
-            parsed_date: Optional[datetime] = None
-            if not raw_date_val:
-                row_errors.append(RowError(row_num, date_col or "transaction_date", "", "Transaction date cannot be empty."))
-            else:
-                try:
-                    if isinstance(raw_date_val, datetime):
-                        parsed_date = raw_date_val
+            parsed_amount, flow = None, None
+            raw_amount = row.get(mapping.get("amount"))
+            try:
+                explicit = parse_direction(row.get(mapping.get("direction")))
+                debit = money(row.get(mapping.get("debit_amount")), optional=True)
+                credit = money(row.get(mapping.get("credit_amount")), optional=True)
+                split = bool(mapping.get("debit_amount") or mapping.get("credit_amount"))
+                if split:
+                    if debit and credit:
+                        raise ValueError("Both debit and credit have non-zero amounts; review this row.")
+                    if debit is not None and debit != 0:
+                        parsed_amount, flow = abs(debit), "debit"
+                    elif credit is not None and credit != 0:
+                        parsed_amount, flow = abs(credit), "credit"
+                    elif debit == 0 or credit == 0:
+                        parsed_amount, flow = Decimal("0.00"), explicit or ("debit" if debit is not None else "credit")
                     else:
-                        parsed_date = date_parser.parse(str(raw_date_val))
-                    if parsed_date.tzinfo is None:
-                        parsed_date = parsed_date.replace(tzinfo=timezone.utc)
-                except Exception as e:
-                    row_errors.append(RowError(row_num, date_col or "transaction_date", raw_date_val, f"Invalid date: {str(e)}"))
+                        raise ValueError("Debit and credit amounts are empty.")
+                    if explicit and explicit != flow:
+                        raise ValueError("Direction conflicts with the debit/credit column.")
+                else:
+                    signed = money(raw_amount)
+                    suffix = re.search(r"(?i)\b(DR|CR)\s*$", str(raw_amount))
+                    flow = explicit or (parse_direction(suffix.group(1)) if suffix else ("debit" if signed < 0 else "credit") if mapping.get("_amount_convention") == "negative_debit" else "credit" if str(raw_amount).strip().startswith("+") else "debit")
+                    parsed_amount = abs(signed)
+                currency = str(row.get(mapping.get("currency")) or "INR").strip().upper()
+                if not re.fullmatch(r"[A-Z]{3}", currency):
+                    raise ValueError("Currency must be a three-letter code.")
+                balance = money(row.get(mapping.get("balance")), optional=True)
+            except (ValueError, TypeError) as exc:
+                row_errors.append(RowError(row_num, "amount", raw_amount, str(exc)))
+                currency, balance = "INR", None
 
-            # 3. Parse Amount
-            raw_amount_val = row.get(amount_col)
-            parsed_amount: Optional[Decimal] = None
-            if raw_amount_val is None or str(raw_amount_val).strip() == "":
-                row_errors.append(RowError(row_num, amount_col or "amount", "", "Amount cannot be empty."))
-            else:
-                try:
-                    clean_str = str(raw_amount_val).replace(",", "").replace("₹", "").replace("$", "").strip()
-                    parsed_amount = Decimal(clean_str).quantize(Decimal("0.01"))
-                    if parsed_amount < 0:
-                        # Negative amount signifies debit if not explicitly marked
-                        parsed_amount = abs(parsed_amount)
-                except (InvalidOperation, ValueError):
-                    row_errors.append(RowError(row_num, amount_col or "amount", raw_amount_val, "Invalid numeric amount."))
-
-            # 4. Optional fields
-            currency = (str(row.get(curr_col, "INR")).strip().upper() if curr_col and row.get(curr_col) else "INR")
-            direction = (str(row.get(dir_col, "debit")).strip().lower() if dir_col and row.get(dir_col) else "debit")
-            if direction not in ("debit", "credit"):
-                direction = "debit"
-
-            channel = (str(row.get(channel_col, "unknown")).strip().lower() if channel_col and row.get(channel_col) else "unknown")
-            reference = (str(row.get(ref_col)).strip() if ref_col and row.get(ref_col) else None)
-
-            # 5. External Synthetic ID
-            ext_id = (str(row.get(ext_id_col)).strip() if ext_id_col and row.get(ext_id_col) else None)
-            if not ext_id and parsed_date and raw_desc and parsed_amount is not None:
-                # Generate stable reproducible synthetic identifier if missing
-                h = hashlib.sha256(f"{parsed_date.isoformat()}_{raw_desc}_{parsed_amount}_{row_num}".encode()).hexdigest()[:12]
-                ext_id = f"SYN-IMP-{h}"
-
+            status = str(row.get(mapping.get("transaction_status")) or "successful").strip().lower()
+            status = {"success": "successful", "completed": "successful", "posted": "successful", "failure": "failed"}.get(status, status)
+            if status not in {"successful", "failed", "pending", "reversed", "cancelled"}:
+                row_errors.append(RowError(row_num, "transaction_status", status, "Unrecognized transaction status."))
+            reference = str(row.get(mapping.get("payment_reference")) or "").strip() or None
+            ext_id = str(row.get(mapping.get("external_synthetic_id")) or "").strip() or None
             if row_errors:
                 errors.extend(row_errors)
-            else:
-                valid_records.append({
-                    "transaction_date": parsed_date,
-                    "raw_descriptor": raw_desc,
-                    "normalised_descriptor": raw_desc.strip(),
-                    "amount": parsed_amount,
-                    "currency": currency,
-                    "direction": direction,
-                    "transaction_status": "successful",
-                    "payment_channel": channel,
-                    "payment_reference": reference,
-                    "external_synthetic_id": ext_id,
-                    "source_row_number": row_num,
-                    "raw_source_snapshot": {k: v for k, v in row.items() if not k.startswith("_")},
-                    "is_synthetic": True,
-                })
-
-        return NormalizedRowResult(
-            valid_records=valid_records,
-            errors=errors,
-            total_rows=len(rows),
-        )
+                continue
+            # Identity excludes file name and row order. An occurrence counter preserves
+            # multiple identical legitimate entries in one file without a bank reference.
+            if not ext_id:
+                identity = [parsed_date.isoformat(), re.sub(r"\s+", " ", raw_desc).casefold(),
+                            str(parsed_amount), currency, flow, reference]
+                base = json.dumps(identity, ensure_ascii=False)
+                occurrences[base] += 1
+                digest = hashlib.sha256(f"{base}:{occurrences[base]}".encode()).hexdigest()
+                ext_id = f"IMP-{digest[:40]}"
+            snapshot = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in row.items()}
+            valid_records.append({
+                "transaction_date": parsed_date, "raw_descriptor": raw_desc,
+                "normalised_descriptor": raw_desc, "amount": parsed_amount,
+                "currency": currency, "direction": flow, "transaction_status": status,
+                "payment_channel": str(row.get(mapping.get("payment_channel")) or "unknown").strip().lower(),
+                "payment_reference": reference, "external_synthetic_id": ext_id,
+                "source_row_number": row.get("_source_row_number", row_num), "raw_source_snapshot": snapshot, "is_synthetic": False,
+            })
+        return NormalizedRowResult(valid_records, errors, len(rows), quarantined_records)
 
     @classmethod
     def normalize_notifications(

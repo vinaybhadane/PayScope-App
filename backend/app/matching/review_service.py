@@ -29,6 +29,7 @@ class ReviewService:
         # Check for existing open review item for this descriptor
         stmt = select(ManualReviewItem).where(
             ManualReviewItem.user_id == user_id,
+            ManualReviewItem.item_type == "merchant_match",
             ManualReviewItem.raw_descriptor == transaction.raw_descriptor,
             ManualReviewItem.status == "open",
         )

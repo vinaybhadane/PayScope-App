@@ -58,22 +58,9 @@ def calculate_normalized_costs(
         return monthly, annual, method
 
     elif cadence_lower == "variable_monthly":
-        if historical_amounts and len(historical_amounts) > 0:
-            sorted_amts = sorted([Decimal(str(a)) for a in historical_amounts])
-            n = len(sorted_amts)
-            if n % 2 == 1:
-                rep = sorted_amts[n // 2]
-            else:
-                rep = (sorted_amts[n // 2 - 1] + sorted_amts[n // 2]) / Decimal("2")
-            monthly = round_currency(rep)
-            annual = round_currency(monthly * Decimal("12"))
-            method = f"Variable Monthly: Historical median ₹{monthly:,.2f} × 12 = ₹{annual:,.2f}/yr"
-            return monthly, annual, method
-        else:
-            monthly = round_currency(amt)
-            annual = round_currency(amt * Decimal("12"))
-            method = f"Variable Monthly: Representative ₹{monthly:,.2f} × 12 = ₹{annual:,.2f}/yr"
-            return monthly, annual, method
+        monthly = round_currency(amt)
+        annual = round_currency(monthly * Decimal("12"))
+        return monthly, annual, f"Variable monthly estimate: latest observed charge {amt} x 12. Future amounts may vary."
 
     elif cadence_lower == "irregular" and median_interval_days and median_interval_days > 0:
         annual = round_currency(amt * Decimal("365.25") / Decimal(str(median_interval_days)))

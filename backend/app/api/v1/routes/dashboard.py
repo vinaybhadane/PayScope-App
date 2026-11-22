@@ -6,12 +6,14 @@ from typing import Dict, List, Optional
 import uuid
 from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import func, select, exists, cast, String
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from time import perf_counter
 from app.core.read_cache import dashboard_cache
 from app.analytics.financial_impact.commitment_costs import get_user_commitment_costs
+from app.analytics.financial_impact.historical_spend import get_monthly_payment_activity
+from app.analytics.financial_impact.schemas import MonthlyTrendPoint
 
 from app.analytics.financial_impact import (
     get_user_savings_summary,
@@ -22,9 +24,8 @@ from app.models.cancellation_case import CancellationCase
 from app.models.commitment import Commitment
 from app.models.commitment_insight import CommitmentInsight
 from app.models.manual_review_item import ManualReviewItem
-from app.models.transaction import Transaction
-from app.models.commitment_transaction import CommitmentTransaction
 from app.repositories.user_repository import UserRepository, resolve_workspace_user_id
+from app.analytics.autodebit_keyword_service import AutoDebitKeywordService
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,17 @@ class DashboardTopCommitment(BaseModel):
     id: uuid.UUID
     display_name: str
     merchant_name: Optional[str] = None
+    merchant_id: Optional[uuid.UUID] = None
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     category: str
     cadence: str
     monthly_cost: Decimal
     status: str
     confidence_band: str
+    payment_rail: Optional[str] = None
+    verification_status: Optional[str] = "inferred"
 
 
 class DashboardRecentInsight(BaseModel):
@@ -68,6 +75,7 @@ class DashboardFinancialOverview(BaseModel):
     candidate_annual_cost: Decimal
     historical_months: List[str]
     historical_amounts: List[Decimal]
+    monthly_activity: List[MonthlyTrendPoint] = []
 
 
 class DashboardSummaryResponse(BaseModel):
@@ -81,7 +89,11 @@ class DashboardSummaryResponse(BaseModel):
     insight_type_counts: Dict[str, int]
     cancellation_summary: Dict[str, int]
     merchant_review_pending: int
+    statement_review_count: int = 0
     canonical_merchants_count: int
+    autodebit_rail_distribution: Optional[Dict[str, int]] = None
+    ai_audit_score: Optional[int] = None
+    ai_audit_status: Optional[str] = "not_audited"
 
 
 def _resolve_user_id(db: Session, user_id: Optional[uuid.UUID] = None) -> uuid.UUID:
@@ -99,6 +111,7 @@ def _get_fallback_dashboard_summary() -> DashboardSummaryResponse:
             historical_months=[], historical_amounts=[]),
         top_commitments=[], category_distribution={}, recent_insights=[], insight_type_counts={},
         cancellation_summary={}, merchant_review_pending=0, canonical_merchants_count=0,
+        autodebit_rail_distribution={}, ai_audit_score=None, ai_audit_status="unavailable",
     )
 
 
@@ -124,7 +137,9 @@ def _build_dashboard_summary(db: Session, user_id: Optional[uuid.UUID]) -> Dashb
         return select(func.count(model.id)).where(model.user_id == target, *conditions).scalar_subquery()
     fields = {"open": count(CommitmentInsight, CommitmentInsight.status == "open"),
               "total": count(CancellationCase),
-              "pending": count(ManualReviewItem, ManualReviewItem.status == "pending")}
+              "statement_review": count(ManualReviewItem, ManualReviewItem.status.in_(["pending", "open"]),
+                                        ManualReviewItem.reason_code.in_(["invalid_statement_row", "security_quarantine"])),
+              "pending": count(ManualReviewItem, ManualReviewItem.status.in_(["pending", "open"]))}
     for kind in insight_types:
         fields[kind] = count(CommitmentInsight, CommitmentInsight.status == "open", CommitmentInsight.insight_type == kind)
     for name, state in cancellation_states.items():
@@ -136,14 +151,36 @@ def _build_dashboard_summary(db: Session, user_id: Optional[uuid.UUID]) -> Dashb
         .join(Commitment, CommitmentInsight.commitment_id == Commitment.id)
         .where(CommitmentInsight.user_id == target, Commitment.user_id == target, CommitmentInsight.status == "open")
         .order_by(CommitmentInsight.detected_at.desc()).limit(5)).all()
-    # Aggregate in SQL and include only successful debit evidence of recurring commitments.
-    period = func.date_trunc("month", Transaction.transaction_date)
-    history = db.execute(select(period.label("month"), func.sum(Transaction.amount).label("amount"))
-        .where(Transaction.user_id == target, Transaction.direction.ilike("debit"),
-               Transaction.currency == 'INR',
-               Transaction.transaction_status.ilike("successful"),
-               exists(select(1).where(CommitmentTransaction.transaction_id == Transaction.id)))
-        .group_by(period).order_by(period.desc()).limit(12)).all()[::-1]
+    history = get_monthly_payment_activity(db, target, limit=12)
+
+    # Calculate auto-debit rail distribution from verified commitments
+    autodebit_service = AutoDebitKeywordService.get_instance()
+    rail_counts: Dict[str, int] = {}
+    top_commitment_models = []
+    
+    for item in sorted(confirmed, key=lambda item: item.normalized_monthly_cost, reverse=True)[:6]:
+        analysis = autodebit_service.analyze_descriptor(item.display_name)
+        rail = analysis.payment_rail if analysis.is_autodebit_candidate else "Unknown"
+        rail_counts[rail] = rail_counts.get(rail, 0) + 1
+        top_commitment_models.append(
+            DashboardTopCommitment(
+                id=item.commitment_id,
+                display_name=item.display_name,
+                merchant_name=item.merchant_name,
+                merchant_id=item.merchant_id,
+                merchant_domain=item.merchant_domain,
+                merchant_logo_url=item.merchant_logo_url,
+                logo_source=item.logo_source,
+                category=(item.category or item.commitment_type).capitalize(),
+                cadence=item.cadence,
+                monthly_cost=item.normalized_monthly_cost,
+                status=item.status,
+                confidence_band=item.confidence_band,
+                payment_rail=rail,
+                verification_status="inferred",
+            )
+        )
+
     return DashboardSummaryResponse(
         generated_at=datetime.now(timezone.utc),
         kpis=DashboardKPIs(active_commitments_count=len(confirmed), monthly_recurring_spend=monthly,
@@ -152,19 +189,20 @@ def _build_dashboard_summary(db: Session, user_id: Optional[uuid.UUID]) -> Dashb
             cancellations_attention_count=cancellation["needs_attention"]),
         financial_overview=DashboardFinancialOverview(monthly_recurring_spend=monthly,
             annualized_recurring_spend=annual, upcoming_month_expected=upcoming.total_upcoming_30d,
-            candidate_annual_cost=candidate, historical_months=[row.month.strftime("%b %Y") for row in history],
-            historical_amounts=[row.amount for row in history]),
-        top_commitments=[DashboardTopCommitment(id=item.commitment_id, display_name=item.display_name,
-            merchant_name=item.merchant_name, category=(item.category or item.commitment_type).capitalize(),
-            cadence=item.cadence, monthly_cost=item.normalized_monthly_cost, status=item.status,
-            confidence_band=item.confidence_band) for item in sorted(confirmed, key=lambda item: item.normalized_monthly_cost, reverse=True)[:6]],
+            candidate_annual_cost=candidate, historical_months=[row.month_label for row in history],
+            historical_amounts=[row.recurring_debit for row in history], monthly_activity=history),
+        top_commitments=top_commitment_models,
         category_distribution=categories,
         recent_insights=[DashboardRecentInsight(id=item.id, commitment_id=item.commitment_id,
             commitment_name=name, insight_type=item.insight_type, severity=item.severity,
             title=item.title, summary=item.summary) for item, name in recent],
         insight_type_counts={kind: int(values[kind]) for kind in insight_types},
         cancellation_summary=cancellation, merchant_review_pending=values["pending"],
+        statement_review_count=values["statement_review"],
         canonical_merchants_count=len({item.merchant_id for item in costs if item.merchant_id}),
+        autodebit_rail_distribution=rail_counts,
+        ai_audit_score=None,
+        ai_audit_status="not_audited",
     )
 
 

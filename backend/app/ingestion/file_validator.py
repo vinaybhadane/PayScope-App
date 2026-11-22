@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Set
 
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
-ALLOWED_EXTENSIONS: Set[str] = {".csv", ".xlsx", ".json", ".pdf"}
+ALLOWED_EXTENSIONS: Set[str] = {".csv", ".xlsx", ".xls", ".json", ".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 
 
 @dataclass
@@ -29,20 +29,6 @@ class FileValidator:
         synthetic_confirmed: bool,
     ) -> FileValidationResult:
         """Validate an uploaded file before parsing."""
-        # 1. Enforce synthetic data confirmation
-        if not synthetic_confirmed:
-            return FileValidationResult(
-                is_valid=False,
-                filename=filename,
-                extension="",
-                file_size_bytes=len(content),
-                checksum_sha256="",
-                error_message=(
-                    "Import rejected: Explicit confirmation is required that this file contains "
-                    "only synthetic demo data. Real financial statements must never be uploaded."
-                ),
-            )
-
         # 2. Check file size
         file_size = len(content)
         if file_size > MAX_FILE_SIZE_BYTES:

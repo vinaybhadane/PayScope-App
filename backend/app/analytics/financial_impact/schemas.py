@@ -11,6 +11,9 @@ class CommitmentCostItem(BaseModel):
     commitment_id: uuid.UUID
     merchant_id: Optional[uuid.UUID] = None
     merchant_name: str
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     category: Optional[str] = None
     display_name: str
     commitment_type: str
@@ -101,6 +104,9 @@ class MerchantCostRanking(BaseModel):
     """Canonical merchant expenditure ranking."""
     merchant_id: Optional[uuid.UUID] = None
     merchant_name: str
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     category: str
     monthly_cost: Decimal
     annualized_cost: Decimal
@@ -116,7 +122,11 @@ class UpcomingExpenseItem(BaseModel):
     """Individual upcoming expected commitment payment."""
     commitment_id: uuid.UUID
     display_name: str
+    merchant_id: Optional[uuid.UUID] = None
     merchant_name: str
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     expected_date: date
     estimated_amount: Decimal
     currency: str = "INR"
@@ -144,7 +154,11 @@ class SavingsOpportunityItem(BaseModel):
     classification: str = "POTENTIAL"  # POTENTIAL, USER_SELECTED, REALIZED
     commitment_id: uuid.UUID
     commitment_name: str
+    merchant_id: Optional[uuid.UUID] = None
     merchant_name: str
+    merchant_domain: Optional[str] = None
+    merchant_logo_url: Optional[str] = None
+    logo_source: Optional[str] = None
     category: str
     current_monthly_cost: Decimal
     current_annual_cost: Decimal
@@ -197,9 +211,7 @@ class SavingsScenarioCreateRequest(BaseModel):
     """Payload to persist a what-if savings scenario."""
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
-    selected_opportunity_ids: List[str] = Field(default_factory=list)
-    selected_commitment_ids: Optional[List[uuid.UUID]] = None
-    include_candidates: bool = False
+    selected_opportunity_ids: List[str]
     parameters: Optional[Dict[str, Any]] = None
 
 

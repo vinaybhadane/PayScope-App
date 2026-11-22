@@ -50,7 +50,7 @@ def refresh_imported_workspace(db: Session, user_id: uuid.UUID) -> dict:
         logger.exception("Report email could not be queued for workspace %s", user_id)
         result["email_status"] = "failed"
     if not neo4j_settings.ENABLED:
-        result.update(graph_status="disabled", message="Dashboard updated. Neo4j is disabled; relationships use database records.")
+        result.update(graph_status="disabled", message="Dashboard updated. The live Relationships tab requires Neo4j.")
     else:
         try:
             sync = GraphSyncService(db).sync_user_graph(user_id)

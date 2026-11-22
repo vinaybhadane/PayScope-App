@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 import pandas as pd
+from app.core.spreadsheet_security import sanitize_spreadsheet_field
 
 
 def export_dataset(dataset: Dict[str, Any], output_dir: Path) -> Dict[str, Path]:
@@ -27,7 +28,10 @@ def export_dataset(dataset: Dict[str, Any], output_dir: Path) -> Dict[str, Path]
             "External_ID": t["external_synthetic_id"],
         })
 
-    df = pd.DataFrame(statement_rows)
+    df = pd.DataFrame([
+        {column: sanitize_spreadsheet_field(value) for column, value in row.items()}
+        for row in statement_rows
+    ])
 
     # File paths
     csv_path = output_dir / "synthetic_bank_statement.csv"

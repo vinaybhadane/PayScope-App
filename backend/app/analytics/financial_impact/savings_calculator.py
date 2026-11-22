@@ -24,6 +24,7 @@ from app.models.commitment_insight import CommitmentInsight
 from app.models.insight_evidence import InsightEvidence
 from app.models.price_event import PriceEvent
 from app.models.usage_coverage import UsageCoverage
+from app.matching.merchant_logo_service import MerchantLogoService
 
 
 def get_user_savings_opportunities(
@@ -31,29 +32,38 @@ def get_user_savings_opportunities(
     user_id: uuid.UUID,
     cost_items: Optional[List[CommitmentCostItem]] = None,
 ) -> List[SavingsOpportunityItem]:
-    """AI recommendations paired with recorded costs for explicit cancellation scenarios."""
+    """Recorded recurring costs available for explicit cancellation scenarios."""
     if cost_items is None:
         cost_items = get_user_commitment_costs(db, user_id)
-    cost_map = {item.commitment_id: item for item in cost_items}
-    # AI chooses relevant product-specific scenarios. Currency arithmetic uses
-    # persisted observations; Gemini never supplies an invented savings amount.
+    # Existing statements and manual corrections share the same observed-cost baseline.
     from app.models.workspace_intelligence import WorkspaceIntelligence
     review = db.get(WorkspaceIntelligence, user_id)
-    if review:
+    if review or any(item.transaction_count for item in cost_items):
         result = []
-        for sub in review.report.get('subscriptions', []):
-            item = cost_map.get(uuid.UUID(sub['commitment_id']))
-            recommendation = sub.get('savings_recommendation')
-            if not item or not item.is_confirmed or not recommendation:
+        for item in cost_items:
+            if not item.is_confirmed or not item.transaction_count or item.annualized_cost <= 0:
                 continue
-            result.append(SavingsOpportunityItem(id=f'opp_ai_{item.commitment_id}', opportunity_type='AI_REVIEW',
-                classification=SAVINGS_CLASS_POTENTIAL, commitment_id=item.commitment_id,
-                commitment_name=item.display_name, merchant_name=item.merchant_name,
-                category=item.category or item.commitment_type,
-                current_monthly_cost=item.normalized_monthly_cost, current_annual_cost=item.annualized_cost,
-                potential_monthly_saving=item.normalized_monthly_cost, potential_annual_saving=item.annualized_cost,
-                evidence_summary=recommendation + ' Simulator assumption: full cancellation of this subscription, not a plan discount. No cancellation is performed.',
-                details={'source': review.model, 'assumption': 'User-selected cancellation; full observed recurring cost avoided. No cancellation has been performed.'}))
+            result.append(
+                SavingsOpportunityItem(
+                    id=f'opp_ai_{item.commitment_id}',
+                    opportunity_type='FULL_CANCELLATION',
+                    classification=SAVINGS_CLASS_POTENTIAL,
+                    commitment_id=item.commitment_id,
+                    commitment_name=item.display_name,
+                    merchant_id=getattr(item, "merchant_id", None),
+                    merchant_name=item.merchant_name,
+                    merchant_domain=getattr(item, "merchant_domain", None),
+                    merchant_logo_url=getattr(item, "merchant_logo_url", None),
+                    logo_source=getattr(item, "logo_source", None),
+                    category=item.category or item.commitment_type,
+                    current_monthly_cost=item.normalized_monthly_cost,
+                    current_annual_cost=item.annualized_cost,
+                    potential_monthly_saving=item.normalized_monthly_cost,
+                    potential_annual_saving=item.annualized_cost,
+                    evidence_summary=f'Based on {item.transaction_count} successful payments. Model the cost you could avoid if future charges stop.',
+                    details={'source': 'statement history', 'assumption': 'Future charges stop after cancellation.'},
+                )
+            )
         return result
 
     return _legacy_savings_opportunities(db, user_id, cost_items)
@@ -122,7 +132,7 @@ def calculate_what_if_projection(
     )
     cost_lookup = {item.commitment_id: item.annualized_cost for item in cost_items}
 
-    all_opps = get_user_savings_opportunities(db, user_id)
+    all_opps = get_user_savings_opportunities(db, user_id, cost_items=cost_items)
     opp_lookup = {opp.id: opp for opp in all_opps}
 
     safeguards: List[str] = [
@@ -132,7 +142,7 @@ def calculate_what_if_projection(
     savings_by_commitment: Dict[uuid.UUID, Decimal] = {}
     selected_count = 0
 
-    for opp_id in selected_opportunity_ids:
+    for opp_id in dict.fromkeys(selected_opportunity_ids):
         opp = opp_lookup.get(opp_id)
         if not opp:
             continue
@@ -251,7 +261,7 @@ def _legacy_savings_opportunities(
         monthly_increase = pe.absolute_change or Decimal("0.00")
         annual_impact = monthly_increase * Decimal("12")
 
-        merchant_name = c.merchant.canonical_name if c.merchant else c.display_name
+        meta = MerchantLogoService.resolve_merchant_metadata(merchant=c.merchant, fallback_name=c.display_name, db=db)
         linked_insight = c_insight_map.get(c.id)
         insight_id = linked_insight.id if linked_insight else None
 
@@ -268,7 +278,11 @@ def _legacy_savings_opportunities(
                 classification=SAVINGS_CLASS_POTENTIAL,
                 commitment_id=c.id,
                 commitment_name=c.display_name,
-                merchant_name=merchant_name,
+                merchant_id=c.merchant_id,
+                merchant_name=meta.merchant_name,
+                merchant_domain=meta.merchant_domain,
+                merchant_logo_url=meta.merchant_logo_url,
+                logo_source=meta.logo_source,
                 category=c.commitment_type,
                 current_monthly_cost=round_currency(current_monthly),
                 current_annual_cost=round_currency(current_annual),
@@ -347,7 +361,7 @@ def _legacy_savings_opportunities(
         current_monthly = c_item.normalized_monthly_cost
         current_annual = c_item.annualized_cost
 
-        merchant_name = c.merchant.canonical_name if c.merchant else c.display_name
+        meta = MerchantLogoService.resolve_merchant_metadata(merchant=c.merchant, fallback_name=c.display_name, db=db)
 
         cov_start = getattr(cov, "coverage_start", None)
         cov_end = getattr(cov, "coverage_end", None)
@@ -368,7 +382,11 @@ def _legacy_savings_opportunities(
                 classification=SAVINGS_CLASS_POTENTIAL,
                 commitment_id=c.id,
                 commitment_name=c.display_name,
-                merchant_name=merchant_name,
+                merchant_id=c.merchant_id,
+                merchant_name=meta.merchant_name,
+                merchant_domain=meta.merchant_domain,
+                merchant_logo_url=meta.merchant_logo_url,
+                logo_source=meta.logo_source,
                 category=c.commitment_type,
                 current_monthly_cost=round_currency(current_monthly),
                 current_annual_cost=round_currency(current_annual),
@@ -412,7 +430,11 @@ def _legacy_savings_opportunities(
                         classification=SAVINGS_CLASS_POTENTIAL,
                         commitment_id=secondary.commitment_id,
                         commitment_name=secondary.display_name,
+                        merchant_id=getattr(secondary, "merchant_id", None),
                         merchant_name=secondary.merchant_name,
+                        merchant_domain=getattr(secondary, "merchant_domain", None),
+                        merchant_logo_url=getattr(secondary, "merchant_logo_url", None),
+                        logo_source=getattr(secondary, "logo_source", None),
                         category=secondary.commitment_type,
                         current_monthly_cost=secondary.normalized_monthly_cost,
                         current_annual_cost=secondary.annualized_cost,

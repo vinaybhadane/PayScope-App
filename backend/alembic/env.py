@@ -24,7 +24,7 @@ target_metadata = Base.metadata
 
 # Ensure sqlalchemy.url is dynamically populated from settings if not explicitly set
 if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", settings.migration_database_url.replace("%", "%%"))
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 
 

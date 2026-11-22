@@ -48,14 +48,13 @@ class UserRepository:
     def get_or_create_demo_user(
         cls,
         db: Session,
-        workspace_key: str = "demo_workspace_primary",
-        display_name: str = "Demo User",
     ) -> DemoUser:
-        """Retrieve existing demo user or create one if not found."""
+        """Resolve only the verified identity; anonymous callers always fail closed."""
         identity = current_identity.get()
-        if identity:
-            workspace_key = identity.workspace_key
-            display_name = identity.display_name
+        if identity is None:
+            raise HTTPException(401, "Sign in to access your workspace.")
+        workspace_key = identity.workspace_key
+        display_name = identity.display_name
         user = cls.get_by_workspace_key(db, workspace_key)
         if not user:
             try:

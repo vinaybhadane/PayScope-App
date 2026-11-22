@@ -4,6 +4,7 @@ from app.models.demo_user import DemoUser
 from app.models.account import Account
 from app.models.import_record import ImportRecord
 from app.models.transaction import Transaction
+from app.models.statement_duplicate import StatementDuplicate
 from app.models.payment_notification import PaymentNotification
 from app.models.merchant import Merchant
 from app.models.descriptor_alias import DescriptorAlias
@@ -27,6 +28,7 @@ __all__ = [
     "Account",
     "ImportRecord",
     "Transaction",
+    "StatementDuplicate",
     "PaymentNotification",
     "Merchant",
     "DescriptorAlias",

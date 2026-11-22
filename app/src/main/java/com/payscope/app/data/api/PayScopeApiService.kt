@@ -59,7 +59,8 @@ interface PayScopeApiService {
     suspend fun previewStatement(
         @Header("Authorization") token: String,
         @Part file: MultipartBody.Part,
-        @Part("synthetic_confirmed") syntheticConfirmed: RequestBody
+        @Part("synthetic_confirmed") syntheticConfirmed: RequestBody,
+        @Part("sync") sync: RequestBody? = null
     ): Response<StatementPreviewResponseDto>
 
     @Multipart
@@ -67,8 +68,15 @@ interface PayScopeApiService {
     suspend fun uploadStatement(
         @Header("Authorization") token: String,
         @Part file: MultipartBody.Part,
-        @Part("synthetic_confirmed") syntheticConfirmed: RequestBody
+        @Part("synthetic_confirmed") syntheticConfirmed: RequestBody,
+        @Part("sync") sync: RequestBody? = null
     ): Response<StatementUploadResponseDto>
+
+    @GET("api/v1/imports/jobs/{jobId}")
+    suspend fun getImportJob(
+        @Header("Authorization") token: String,
+        @Path("jobId") jobId: String
+    ): Response<com.payscope.app.data.model.ImportJobDto>
 
     @POST("api/v1/assistant/chat")
     suspend fun chatWithAssistant(

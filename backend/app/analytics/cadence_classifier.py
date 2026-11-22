@@ -41,22 +41,38 @@ def classify_cadence(
     """
     count = interval_info.count
 
-    # One charge does not establish a billing interval, even for a familiar brand.
+    # Single transaction case
     if count == 1:
-        annual_hint = "insurance" in (merchant_category or "").lower() or "annual" in display_name.lower()
+        # Check if payee has insurance or annual characteristics
+        name_lower = display_name.lower()
+        cat_lower = (merchant_category or "").lower()
+        is_potential_annual = (
+            "insurance" in cat_lower
+            or "insurance" in name_lower
+            or "annual" in name_lower
+            or "premium" in name_lower
+            or float(amount_info.representative_amount) >= 5000.0
+        )
+        if is_potential_annual:
+            return CadenceClassification(
+                cadence="annual",
+                is_recurring=False,  # Single observation is NOT confirmed recurring
+                is_candidate_only=True,
+                primary_reason="Single transaction observed for potential annual commitment; insufficient evidence for confirmed recurrence.",
+            )
         return CadenceClassification(
-            cadence="annual" if annual_hint else "unknown",
+            cadence="unknown",
             is_recurring=False,
-            is_candidate_only=annual_hint,
-            primary_reason="A single charge requires another billing cycle before recurrence can be confirmed.",
+            is_candidate_only=False,
+            primary_reason="Single transaction observed; insufficient evidence to establish recurrence.",
         )
 
     if count < MIN_RECURRING_EVENTS:
         return CadenceClassification(
-            cadence="monthly",
-            is_recurring=True,
+            cadence="unknown",
+            is_recurring=False,
             is_candidate_only=False,
-            primary_reason=f"Recurring payments observed across statement cycles ({count} events).",
+            primary_reason=f"Insufficient transaction count ({count}) for recurrence.",
         )
 
     med_days = interval_info.median_interval

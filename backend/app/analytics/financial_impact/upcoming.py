@@ -2,6 +2,9 @@
 
 import uuid
 from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
+from zoneinfo import ZoneInfo
+from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -25,7 +28,7 @@ def get_user_upcoming_expenditure(
 
     Distinguishes scheduled vs estimated dates, and excludes unconfirmed one-off transactions.
     """
-    today = as_of or date.today()
+    today = as_of or datetime.now(ZoneInfo("Asia/Kolkata")).date()
     cutoff_30d = today + timedelta(days=30)
     cutoff_60d = today + timedelta(days=60)
 
@@ -44,25 +47,22 @@ def get_user_upcoming_expenditure(
 
     for item in candidates:
         exp_date = item.next_expected_date
-        basis = "scheduled"
-
-        # If next_expected_date is missing or in the past, synthesize realistic next date using cadence
-        if not exp_date or exp_date < today:
-            basis = "estimated_cadence"
-            cad = (item.cadence or "monthly").lower()
-            if cad == "weekly":
-                exp_date = today + timedelta(days=7)
-            elif cad == "fortnightly":
-                exp_date = today + timedelta(days=14)
-            elif cad == "quarterly":
-                exp_date = today + timedelta(days=45)
-            elif cad == "annual":
-                exp_date = today + timedelta(days=60)
-            else:  # monthly / variable_monthly
-                exp_date = today + timedelta(days=15)
-
-        # Check if within 60 days
-        if today <= exp_date <= cutoff_60d:
+        basis = "estimated_from_observed_cadence"
+        cadence = (item.cadence or "").lower()
+        steps = {"weekly": timedelta(days=7), "fortnightly": timedelta(days=14),
+                 "monthly": relativedelta(months=1), "variable_monthly": relativedelta(months=1),
+                 "quarterly": relativedelta(months=3), "annual": relativedelta(years=1)}
+        step = steps.get(cadence)
+        if not exp_date or step is None:
+            continue
+        # Anchor every occurrence to the observed billing date, including month
+        # ends; include all weekly/fortnightly payments in the selected horizon.
+        anchor = exp_date
+        occurrence = 0
+        while exp_date < today:
+            occurrence += 1
+            exp_date = anchor + step * occurrence
+        while today <= exp_date <= cutoff_60d:
             amt = item.representative_amount
             if exp_date <= cutoff_30d:
                 total_30d += amt
@@ -72,7 +72,11 @@ def get_user_upcoming_expenditure(
                 UpcomingExpenseItem(
                     commitment_id=item.commitment_id,
                     display_name=item.display_name,
+                    merchant_id=getattr(item, "merchant_id", None),
                     merchant_name=item.merchant_name,
+                    merchant_domain=getattr(item, "merchant_domain", None),
+                    merchant_logo_url=getattr(item, "merchant_logo_url", None),
+                    logo_source=getattr(item, "logo_source", None),
                     expected_date=exp_date,
                     estimated_amount=round_currency(amt),
                     currency=item.currency,
@@ -81,6 +85,8 @@ def get_user_upcoming_expenditure(
                     is_confirmed=item.is_confirmed,
                 )
             )
+            occurrence += 1
+            exp_date = anchor + step * occurrence
 
     items.sort(key=lambda x: x.expected_date)
 

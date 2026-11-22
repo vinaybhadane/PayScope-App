@@ -6,6 +6,7 @@ from app.matching.merchant_fixtures import CANONICAL_MERCHANT_REGISTRY
 from app.matching.normalizer import DescriptorNormalizer
 from app.models.descriptor_alias import DescriptorAlias
 from app.models.merchant import Merchant
+from app.matching.merchant_logo_service import MerchantLogoService
 
 
 def seed_canonical_merchants(db: Session) -> dict[str, int]:
@@ -30,10 +31,13 @@ def seed_canonical_merchants(db: Session) -> dict[str, int]:
                 is_fictional_demo_merchant=fixture.is_fictional,
                 reference_source="seed_curated_demo_fixtures",
             )
+            MerchantLogoService.resolve_merchant_metadata(merchant=merchant, fallback_name=fixture.canonical_name)
             db.add(merchant)
             db.flush()
             created_merchants += 1
         else:
+            if not merchant.logo_url:
+                MerchantLogoService.resolve_merchant_metadata(merchant=merchant, fallback_name=fixture.canonical_name, db=db)
             existing_merchants += 1
 
         # Seed aliases for this merchant

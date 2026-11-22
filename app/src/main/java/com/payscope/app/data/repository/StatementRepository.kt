@@ -5,10 +5,12 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.payscope.app.data.api.*
 import com.payscope.app.data.local.DataStoreManager
+import com.payscope.app.data.model.*
 import com.payscope.app.domain.model.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -91,9 +93,66 @@ class StatementRepository @Inject constructor(
         MultipartBody.Part.createFormData("file", file.name, bytes.toRequestBody(mime.toMediaType()))
     }
     private fun confirmed() = "true".toRequestBody("text/plain".toMediaType())
+    private fun syncPart() = "true".toRequestBody("text/plain".toMediaType())
+
+    private suspend fun pollImportJob(token: String, jobId: String): String {
+        val maxAttempts = 90
+        for (i in 0 until maxAttempts) {
+            delay(1000)
+            val job = apiService.getImportJob(token, jobId).requireBody()
+            when (job.status.lowercase()) {
+                "completed" -> {
+                    val res = job.result ?: error("Import job completed but returned no result.")
+                    val id = (res["import_id"] ?: res["id"])?.toString()
+                    return id ?: error("The server did not return a saved import ID in completed job.")
+                }
+                "failed" -> {
+                    error(job.error ?: "Statement processing failed. Please check the file and retry.")
+                }
+                "queued", "running" -> {
+                    // Continue polling while background worker finishes parsing & OCR
+                }
+                else -> {
+                    error("Unexpected import job status: ${job.status}")
+                }
+            }
+        }
+        error("Statement processing timed out. Please retry.")
+    }
+
+    private suspend fun pollPreviewJob(token: String, jobId: String): StatementPreviewResponseDto {
+        val maxAttempts = 90
+        val gson = com.google.gson.Gson()
+        for (i in 0 until maxAttempts) {
+            delay(1000)
+            val job = apiService.getImportJob(token, jobId).requireBody()
+            when (job.status.lowercase()) {
+                "completed" -> {
+                    val res = job.result ?: error("Preview job completed but returned no result.")
+                    val jsonTree = gson.toJsonTree(res)
+                    return gson.fromJson(jsonTree, StatementPreviewResponseDto::class.java)
+                }
+                "failed" -> {
+                    error(job.error ?: "Statement preview failed. Please retry.")
+                }
+                "queued", "running" -> {
+                    // Continue polling
+                }
+                else -> {
+                    error("Unexpected preview job status: ${job.status}")
+                }
+            }
+        }
+        error("Statement preview timed out. Please retry.")
+    }
 
     suspend fun getStatementPreview(file: SelectedFile): StatementPreviewData {
-        val b = apiService.previewStatement(auth(), part(file), confirmed()).requireBody()
+        val raw = apiService.previewStatement(auth(), part(file), confirmed(), syncPart()).requireBody()
+        val b = if (!raw.jobId.isNullOrBlank()) {
+            pollPreviewJob(auth(), raw.jobId)
+        } else {
+            raw
+        }
         require(b.invalidCount == 0) { "${b.invalidCount} statement rows could not be read reliably. Correct the source file or export CSV/XLSX and retry." }
         require(b.previewRows.isNotEmpty()) { "No valid transactions were found in this statement." }
         return StatementPreviewData(b.fileInfo?.filename ?: file.name,
@@ -113,9 +172,16 @@ class StatementRepository @Inject constructor(
         val token = auth()
         completeStatementImport(
             upload = {
-                val result = apiService.uploadStatement(token, filePart, confirmed()).requireBody()
+                val result = apiService.uploadStatement(token, filePart, confirmed(), syncPart()).requireBody()
                 check(result.status != "failed") { result.errorSummary ?: "No transactions could be imported. Review your file and retry." }
-                result.importId ?: error("The server did not return a saved import ID.")
+                val importId = if (!result.importId.isNullOrBlank()) {
+                    result.importId
+                } else if (!result.jobId.isNullOrBlank()) {
+                    pollImportJob(token, result.jobId)
+                } else {
+                    error("The server did not return a saved import ID.")
+                }
+                importId
             },
             confirmSaved = { id ->
                 val saved = apiService.getImportStatus(token, id).requireBody()

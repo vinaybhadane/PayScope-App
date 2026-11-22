@@ -12,7 +12,7 @@ class GeneratorConfig:
     start_date: date = date(2026, 5, 1)
     end_date: date = date(2026, 10, 31)
     currency: str = "INR"
-    user_workspace_key: str = "demo_workspace_primary"
+    user_workspace_key: str = "synthetic_dataset_metadata"
     min_transactions: int = 80
     min_notifications: int = 15
 

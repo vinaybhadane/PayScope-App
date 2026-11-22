@@ -91,6 +91,7 @@ data class StatementFileInfo(
 )
 
 data class StatementPreviewResponseDto(
+    @SerializedName("job_id") val jobId: String? = null,
     @SerializedName("statement_id") val statementId: String? = null,
     @SerializedName("file_info") val fileInfo: StatementFileInfo? = null,
     @SerializedName("filename", alternate = ["file_name"]) val fileName: String? = null,
@@ -110,12 +111,20 @@ data class StatementPreviewResponseDto(
 
 data class StatementUploadResponseDto(
     @SerializedName("import_id") val importId: String? = null,
+    @SerializedName("job_id") val jobId: String? = null,
     @SerializedName("filename", alternate = ["file_name"]) val fileName: String? = "Statement",
     @SerializedName("accepted_count", alternate = ["record_count", "total_rows"]) val recordCount: Int = 0,
     @SerializedName("status") val status: String = "completed",
     @SerializedName("message") val message: String? = "Statement imported successfully",
     @SerializedName("workspace_refresh") val workspaceRefresh: Map<String, Any>? = null,
     @SerializedName("error_summary") val errorSummary: String? = null
+)
+
+data class ImportJobDto(
+    @SerializedName("job_id") val jobId: String,
+    @SerializedName("status") val status: String,
+    @SerializedName("result") val result: Map<String, Any?>? = null,
+    @SerializedName("error") val error: String? = null
 )
 
 // Assistant Chat DTOs

@@ -19,7 +19,9 @@ from app.analytics.insights import (
     run_insight_detection,
 )
 from app.db.session import get_db
-from app.core.auth import current_identity
+from app.analytics.gemini_statement_insights import explain_comparison, GeminiUnavailable
+from app.analytics.statement_comparison import compare_statements
+from app.core.config import settings
 from app.models.audit_event import AuditEvent
 from app.models.commitment import Commitment
 from app.models.commitment_insight import CommitmentInsight
@@ -28,6 +30,35 @@ from app.models.price_event import PriceEvent
 from app.repositories.user_repository import UserRepository, resolve_workspace_user_id
 
 router = APIRouter(prefix="/insights", tags=["Commitment Insights"])
+
+
+def _comparison(db, previous_id, current_id):
+    try:
+        return compare_statements(db, resolve_workspace_user_id(db), previous_id, current_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/statement-comparison")
+def statement_comparison(
+    previous_id: uuid.UUID | None = None, current_id: uuid.UUID | None = None, db: Session = Depends(get_db),
+):
+    return {**_comparison(db, previous_id, current_id), "gemini_configured": bool(settings.GEMINI_API_KEY)}
+
+
+@router.post("/statement-comparison/explain")
+def explain_statement_comparison(previous_id: uuid.UUID, current_id: uuid.UUID, db: Session = Depends(get_db)):
+    comparison = _comparison(db, previous_id, current_id)
+    # Release the read transaction before waiting for the external provider.
+    db.rollback()
+    try:
+        return explain_comparison(comparison)
+    except GeminiUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 def _to_evidence_response(e: InsightEvidence) -> EvidenceItemResponse:
@@ -108,12 +139,7 @@ def detect_insights(
     target_user_id = resolve_workspace_user_id(db, user_id)
     from app.analytics.ai_review import review_workspace
     try:
-        identity = current_identity.get()
-        if identity and identity.is_demo:
-            from app.analytics.demo_review import review_demo_workspace
-            review_demo_workspace(db, target_user_id)
-        else:
-            review_workspace(db, target_user_id)
+        review_workspace(db, target_user_id)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(503, str(exc)) from exc

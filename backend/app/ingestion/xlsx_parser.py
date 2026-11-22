@@ -1,53 +1,51 @@
-"""Excel XLSX file parser using openpyxl."""
+"""Read statement tables from every XLSX or legacy XLS worksheet."""
 import io
-from datetime import date, datetime
-from typing import Any, Dict, List, Tuple
 import openpyxl
+from app.ingestion.tabular import statement_matrix
+from app.ingestion.column_mapper import ColumnMapper
 
 
 class XLSXParser:
-    """Parses raw Excel XLSX bytes into column headers and row dictionaries."""
-
     @staticmethod
-    def parse(content: bytes) -> Tuple[List[str], List[Dict[str, Any]]]:
-        """Read active sheet of XLSX content."""
-        file_obj = io.BytesIO(content)
+    def parse(content):
+        collected, headers = [], []
         try:
-            wb = openpyxl.load_workbook(file_obj, data_only=True, read_only=True)
-        except Exception as e:
-            raise ValueError(f"Failed to read Excel workbook: {str(e)}")
-
-        sheet = wb.active
-        if not sheet:
-            raise ValueError("Excel file contains no active worksheet.")
-
-        rows_iter = sheet.iter_rows(values_only=True)
-        try:
-            header_row = next(rows_iter)
-        except StopIteration:
-            return [], []
-
-        headers = [str(h).strip() for h in header_row if h is not None]
+            if content.startswith(b"\xd0\xcf\x11\xe0"):
+                import xlrd
+                workbook = xlrd.open_workbook(file_contents=content)
+                sheets = []
+                for sheet in workbook.sheets():
+                    matrix = []
+                    for index in range(sheet.nrows):
+                        values = []
+                        for cell in sheet.row(index):
+                            values.append(xlrd.xldate_as_datetime(cell.value, workbook.datemode)
+                                          if cell.ctype == xlrd.XL_CELL_DATE else cell.value)
+                        matrix.append(values)
+                    sheets.append((sheet.name, matrix))
+            else:
+                workbook = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+                sheets = [(sheet.title, list(sheet.iter_rows(values_only=True))) for sheet in workbook.worksheets]
+            try:
+                row_offset = 0
+                for name, matrix in sheets:
+                    found, rows = statement_matrix(matrix, sheet=name)
+                    for header in found:
+                        if header not in headers:
+                            headers.append(header)
+                    for row in rows:
+                        row["_column_mapping"] = ColumnMapper.auto_detect(found)
+                        row["_source_row_number"] = row["_row_number"]
+                        row["_row_number"] += row_offset
+                    collected.extend(rows)
+                    row_offset += len(matrix)
+            finally:
+                if hasattr(workbook, "close"):
+                    workbook.close()
+                elif hasattr(workbook, "release_resources"):
+                    workbook.release_resources()
+        except Exception as exc:
+            raise ValueError(f"Failed to read Excel statement: {exc}") from exc
         if not headers:
-            return [], []
-
-        rows: List[Dict[str, Any]] = []
-        for row_idx, row_values in enumerate(rows_iter, start=2):
-            # Check if entire row is empty
-            if all(v is None or str(v).strip() == "" for v in row_values):
-                continue
-
-            row_dict: Dict[str, Any] = {"_row_number": row_idx}
-            for col_idx, h in enumerate(headers):
-                val = row_values[col_idx] if col_idx < len(row_values) else None
-                if isinstance(val, (datetime, date)):
-                    val = val.isoformat()
-                elif isinstance(val, str):
-                    val = val.strip()
-                row_dict[h] = val
-
-            rows.append(row_dict)
-
-        wb.close()
-        return headers, rows
-
+            raise ValueError("No statement table found. Include Date, Description, and Amount or Debit/Credit headers.")
+        return headers, collected

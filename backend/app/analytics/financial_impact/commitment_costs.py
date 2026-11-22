@@ -14,6 +14,7 @@ from app.analytics.financial_impact.config import (
 from app.analytics.financial_impact.normalization import calculate_normalized_costs
 from app.analytics.interval_analyzer import analyze_intervals
 from app.analytics.financial_impact.schemas import CommitmentCostItem
+from app.matching.merchant_logo_service import MerchantLogoService
 from app.models.commitment import Commitment
 from app.models.commitment_transaction import CommitmentTransaction
 from app.models.transaction import Transaction
@@ -95,13 +96,20 @@ def get_user_commitment_costs(
         confirmed = is_confirmed_commitment(c)
         candidate = c.status not in INACTIVE_STATUSES and not confirmed
 
-        merchant_name = c.merchant.canonical_name if c.merchant else c.display_name
+        meta = MerchantLogoService.resolve_merchant_metadata(
+            merchant=c.merchant,
+            fallback_name=c.display_name,
+            db=db,
+        )
 
         items.append(
             CommitmentCostItem(
                 commitment_id=c.id,
                 merchant_id=c.merchant_id,
-                merchant_name=merchant_name,
+                merchant_name=meta.merchant_name,
+                merchant_domain=meta.merchant_domain,
+                merchant_logo_url=meta.merchant_logo_url,
+                logo_source=meta.logo_source,
                 category=c.category or (c.merchant.category if c.merchant else None),
                 display_name=c.display_name,
                 commitment_type=c.commitment_type,
