@@ -13,7 +13,7 @@ engine = create_engine(
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=300,
     echo=False,
-    connect_args={'connect_timeout': 5},
+    connect_args={'connect_timeout': 15},
 )
 
 SessionLocal = sessionmaker(

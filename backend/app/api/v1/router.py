@@ -17,11 +17,13 @@ from app.api.v1.routes.cancellations import router as cancellations_router
 from app.api.v1.routes.dashboard import router as dashboard_router
 from app.api.v1.routes.graph import router as graph_router
 from app.api.v1.routes.workspace import router as workspace_router
+from app.api.v1.routes.transactions import router as transactions_router
+from app.api.v1.routes.mobile import router as mobile_router
 from app.api.v1.routes.assistant import router as assistant_router
 
 api_v1_router = APIRouter()
+api_v1_router.include_router(transactions_router, dependencies=[Depends(require_identity)])
 api_v1_router.include_router(workspace_router, dependencies=[Depends(require_identity)])
-api_v1_router.include_router(assistant_router, dependencies=[Depends(require_identity)])
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(ready_router)
 api_v1_router.include_router(auth_router)
@@ -37,6 +39,5 @@ api_v1_router.include_router(savings_router, dependencies=[Depends(require_ident
 api_v1_router.include_router(cancellations_router, dependencies=[Depends(require_identity)])
 api_v1_router.include_router(dashboard_router, dependencies=[Depends(require_identity)])
 api_v1_router.include_router(graph_router, dependencies=[Depends(require_identity)])
-
-from app.api.v1.routes.mobile import router as mobile_router
 api_v1_router.include_router(mobile_router, dependencies=[Depends(require_identity)])
+api_v1_router.include_router(assistant_router, dependencies=[Depends(require_identity)])

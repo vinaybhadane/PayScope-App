@@ -18,7 +18,7 @@ from app.graph.exceptions import (
     Neo4jDisabledError,
     Neo4jSyncError,
 )
-from app.graph.schema import initialize_graph_schema
+from app.graph.payment_projection import PAYMENT_EVIDENCE, link_payment_evidence, make_payment_row, payment_rows_statement
 from app.graph.schemas import GraphSyncResponse
 from app.models.account import Account
 from app.models.cancellation_event import CancellationEvent
@@ -31,8 +31,6 @@ from app.models.insight_evidence import InsightEvidence
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
 
-_schema_lock = Lock()
-_schema_ready = False
 _sync_locks = [Lock() for _ in range(32)]
 
 
@@ -63,7 +61,6 @@ class GraphSyncService:
             return self._sync(driver, user_id)
 
     def _sync(self, driver, user_id):
-        global _schema_ready
         started = perf_counter()
         now = datetime.now(timezone.utc)
         token = str(uuid.uuid4())
@@ -283,11 +280,12 @@ class GraphSyncService:
         ]
         node_count = edge_count = 0
         try:
-            with _schema_lock:
-                if not _schema_ready:
-                    initialize_graph_schema(driver, database=settings.DATABASE)
-                    _schema_ready = True
             with driver.session(database=settings.DATABASE) as session:
+                session.run(Query(
+                    "MERGE (u:User {id:$user_id}) SET u.user_id=$user_id, u.sync_status='syncing'",
+                    timeout=settings.SYNC_QUERY_TIMEOUT,
+                ), user_id=workspace).consume()
+                graph_cache.clear()
                 for label, stmt, owned in nodes:
                     query = f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) SET n += row"
                     if owned:
@@ -302,6 +300,9 @@ class GraphSyncService:
                     edge_count += self._write_batches(
                         session, stmt, query, workspace, token
                     )
+                self._write_batches(session, payment_rows_statement(user_id), PAYMENT_EVIDENCE, workspace, token,
+                                    transform=lambda row: make_payment_row(row, workspace))
+                link_payment_evidence(session, workspace, token)
                 # Remove only stale derived data owned by this workspace, after a full successful pass.
                 session.run(
                     Query(
@@ -317,6 +318,9 @@ class GraphSyncService:
                     "Commitment",
                     "CommitmentInsight",
                     "CancellationEvent",
+                    "MerchantDescriptor",
+                    "Mandate",
+                    "Merchant",
                 ):
                     session.run(
                         Query(
@@ -327,7 +331,7 @@ class GraphSyncService:
                         token=token,
                     ).consume()
                 session.run(
-                    "MATCH (u:User {id:$id}) SET u.last_sync_at=$now",
+                    "MATCH (u:User {id:$id}) SET u.last_sync_at=$now, u.sync_status='ready'",
                     id=workspace,
                     now=now.isoformat(),
                 ).consume()
@@ -347,7 +351,7 @@ class GraphSyncService:
             last_sync_at=now,
         )
 
-    def _write_batches(self, session, statement, query, workspace, token):
+    def _write_batches(self, session, statement, query, workspace, token, *, transform=None):
         count = 0
         batch_size = max(50, min(settings.SYNC_BATCH_SIZE, 2000))
         result = self.db.execute(
@@ -355,7 +359,8 @@ class GraphSyncService:
         ).mappings()
         for partition in result.partitions(batch_size):
             rows = [
-                {key: _value(value) for key, value in row.items()} for row in partition
+                {key: _value(value) for key, value in (transform(row) if transform else row).items()}
+                for row in partition
             ]
 
             @unit_of_work(timeout=settings.SYNC_QUERY_TIMEOUT)

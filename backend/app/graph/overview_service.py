@@ -1,14 +1,17 @@
 """A bounded, connected graph snapshot; Neo4j reads never block dashboard metrics."""
 
 from datetime import datetime
+import logging
 from threading import Lock
 from time import monotonic
 import uuid
 from neo4j import Query, READ_ACCESS
+from neo4j.exceptions import Neo4jError as DriverError
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload, Session
 from app.graph.config import neo4j_settings as settings
 from app.graph.driver import get_neo4j_driver
+from app.graph.exceptions import Neo4jConnectionError, Neo4jDisabledError, Neo4jSyncError
 from app.graph.schemas import (
     GraphElements,
     GraphNode,
@@ -25,6 +28,7 @@ from app.models.import_record import ImportRecord
 
 _retry_after = 0.0
 _circuit_lock = Lock()
+logger = logging.getLogger(__name__)
 
 
 def reset_neo4j_circuit():
@@ -34,21 +38,52 @@ def reset_neo4j_circuit():
 
 
 OVERVIEW_QUERY = """
-MATCH (u:User {id:$user_id})
-CALL (u) { MATCH (u)-[:HAS_COMMITMENT]->(c:Commitment)
-       WITH c ORDER BY c.id LIMIT $limit RETURN collect(c) AS commitments }
-CALL (u) { MATCH (u)-[ownership]->(a:Account) WHERE type(ownership)='OWNS_ACCOUNT'
-       WITH a ORDER BY a.id LIMIT 20 RETURN collect(a) AS accounts }
-CALL (commitments) { UNWIND commitments AS c MATCH (c)-[:ASSOCIATED_WITH]->(m:Merchant)
-       RETURN collect(DISTINCT m) AS merchants }
-CALL (commitments) { UNWIND commitments AS c MATCH (c)-[:HAS_INSIGHT]->(i:CommitmentInsight)
-       WITH DISTINCT i ORDER BY i.detected_at DESC LIMIT 50 RETURN collect(i) AS insights }
-CALL (commitments) { UNWIND commitments AS c MATCH (c)-[:SUPPORTED_BY]->(t:Transaction)
-       WITH DISTINCT t ORDER BY t.transaction_date DESC LIMIT $limit RETURN collect(t) AS transactions }
-WITH u, [u]+accounts+commitments+merchants+insights+transactions AS selected
+MATCH (u:User {id:$user_id, user_id:$user_id})
+CALL (u) {
+    MATCH (u)-[:OWNS_ACCOUNT {user_id:$user_id}]->(a:Account {ownerId:$user_id, user_id:$user_id})
+    MATCH (a)-[:PAYS {user_id:$user_id}]->(m:Merchant)
+    WITH a, m ORDER BY a.id, m.id LIMIT $limit
+    RETURN collect(DISTINCT a) AS accounts, collect(DISTINCT m) AS merchants
+}
+CALL (accounts, merchants) {
+    UNWIND accounts AS a
+    MATCH (a)-[:HAS_TRANSACTION {user_id:$user_id}]->(t:Transaction {user_id:$user_id})
+           -[:PAID_TO {user_id:$user_id}]->(m:Merchant)
+    WHERE t.statement_import_id IS NOT NULL AND m IN merchants
+    WITH DISTINCT t ORDER BY t.transaction_date DESC, t.id LIMIT $limit
+    RETURN collect(t) AS transactions
+}
+CALL (transactions) {
+    UNWIND transactions AS t
+    MATCH (c:Commitment {user_id:$user_id})-[:SUPPORTED_BY {user_id:$user_id}]->(t)
+    WITH DISTINCT c ORDER BY c.id LIMIT $limit
+    RETURN collect(c) AS commitments
+}
+CALL (merchants) {
+    UNWIND merchants AS m
+    MATCH (m)-[:HAS_PAYMENT_DESCRIPTOR {user_id:$user_id}]->(d:MerchantDescriptor {user_id:$user_id})
+    WITH DISTINCT d ORDER BY d.id LIMIT $limit
+    RETURN collect(d) AS descriptors
+}
+CALL (merchants) {
+    UNWIND merchants AS m
+    MATCH (m)-[:HAS_MANDATE {user_id:$user_id}]->(ma:Mandate {user_id:$user_id})
+    WITH DISTINCT ma ORDER BY ma.id LIMIT $limit
+    RETURN collect(ma) AS mandates
+}
+CALL (mandates, commitments) {
+    MATCH (i:CommitmentInsight {user_id:$user_id})
+    WHERE EXISTS { MATCH (ma:Mandate)-[:FLAGGED_AS {user_id:$user_id}]->(i) WHERE ma IN mandates }
+       OR EXISTS { MATCH (c:Commitment)-[:HAS_INSIGHT {user_id:$user_id}]->(i) WHERE c IN commitments }
+    WITH i ORDER BY i.detected_at DESC, i.id LIMIT $limit
+    RETURN collect(i) AS insights
+}
+WITH u, size(accounts) AS account_count, [u]+accounts+commitments+merchants+insights+transactions+descriptors+mandates AS selected
 UNWIND selected AS n
-OPTIONAL MATCH (n)-[r]->(other) WHERE other IN selected
-RETURN collect(DISTINCT n) AS nodes, collect(DISTINCT r) AS relationships, u.last_sync_at AS last_sync_at
+OPTIONAL MATCH (n)-[r {user_id:$user_id}]->(other) WHERE other IN selected
+WITH u, account_count, collect(DISTINCT n) AS nodes, collect(DISTINCT r) AS relationships
+RETURN CASE WHEN account_count = 0 THEN [] ELSE nodes END AS nodes,
+       relationships, u.last_sync_at AS last_sync_at, u.sync_status AS sync_status
 """
 
 
@@ -60,7 +95,7 @@ def _node(node_id, kind, name, **props):
     )
 
 
-def _edge(source, target, kind):
+def _edge(source, target, kind, **metadata):
     return GraphEdge(
         data=GraphEdgeData(
             id=f"{source}:{kind}:{target}",
@@ -68,6 +103,7 @@ def _edge(source, target, kind):
             target=str(target),
             relationship_type=kind,
             label=kind.replace("_", " ").lower(),
+            metadata=metadata,
         )
     )
 
@@ -75,13 +111,14 @@ def _edge(source, target, kind):
 def serialize_neo4j(record, limit):
     nodes = []
     for n in record["nodes"]:
-        kind = next(iter(n.labels))
+        kind = "RiskAlert" if "RiskAlert" in n.labels else next(iter(n.labels))
         name = (
             n.get("display_name")
             or n.get("canonical_name")
             or n.get("label")
             or n.get("title")
             or n.get("raw_descriptor")
+            or n.get("rawDescriptor")
             or kind
         )
         nodes.append(
@@ -109,53 +146,61 @@ def serialize_neo4j(record, limit):
         )
     ids = {n.data.id for n in nodes}
     edges = [
-        _edge(r.start_node["id"], r.end_node["id"], r.type)
+        _edge(r.start_node["id"], r.end_node["id"], r.type, **({"score": r["score"]} if "score" in r else {}))
         for r in record["relationships"]
         if r.start_node["id"] in ids and r.end_node["id"] in ids
     ]
     by_id = {n.data.id: n for n in nodes}
     for e in edges:
         if e.data.relationship_type == "ASSOCIATED_WITH":
-            if not by_id[e.data.source].data.category:
-                by_id[e.data.source].data.category = by_id[e.data.target].data.category
+            by_id[e.data.source].data.category = by_id[e.data.target].data.category
     return GraphElements(
         nodes=nodes,
         edges=edges,
         source="neo4j",
         last_sync_at=record.get("last_sync_at"),
-        truncated=sum(n.data.node_type == "Commitment" for n in nodes) >= limit,
-        message="Indexed Neo4j workspace projection. Evidence is limited to the most recent records.",
+        truncated=any(sum(n.data.node_type == kind for n in nodes) >= limit for kind in (
+            "Merchant", "Transaction", "MerchantDescriptor", "Mandate", "Commitment",
+        )),
+        message="Live Neo4j projection of this workspace's statement payments.",
     )
 
 
-def get_overview(db: Session, user_id: uuid.UUID, limit=50):
+def get_live_overview(db: Session, user_id: uuid.UUID, limit=50):
     global _retry_after
     limit = max(1, min(limit, 100))
-    if settings.ENABLED and monotonic() >= _retry_after:
-        try:
-            driver = get_neo4j_driver()
-            if driver:
-                with driver.session(
-                    database=settings.DATABASE,
-                    default_access_mode=READ_ACCESS,
-                    fetch_size=200,
-                ) as session:
-                    record = session.run(
-                        Query(OVERVIEW_QUERY, timeout=settings.QUERY_TIMEOUT),
-                        user_id=str(user_id),
-                        limit=limit,
-                    ).single()
-                    if record:
-                        graph = serialize_neo4j(record, limit)
-                        latest_import = db.scalar(select(func.max(ImportRecord.finished_at)).where(
-                            ImportRecord.user_id == user_id, ImportRecord.status.in_(["completed", "partially_completed"])))
-                        # Never serve an old projection after a saved import whose sync failed.
-                        if not latest_import or (graph.last_sync_at and graph.last_sync_at >= latest_import):
-                            return graph
-        except Exception:
-            with _circuit_lock:
-                _retry_after = monotonic() + 30
-    return relational_overview(db, user_id, limit)
+    if not settings.ENABLED:
+        raise Neo4jDisabledError("Live Neo4j is disabled for this environment.")
+    if monotonic() < _retry_after:
+        raise Neo4jConnectionError("Live Neo4j is temporarily unavailable. Please retry shortly.")
+    try:
+        driver = get_neo4j_driver()
+        with driver.session(database=settings.DATABASE, default_access_mode=READ_ACCESS, fetch_size=200) as session:
+            record = session.run(Query(OVERVIEW_QUERY, timeout=settings.QUERY_TIMEOUT),
+                                 user_id=str(user_id), limit=limit).single()
+    except Exception as exc:
+        with _circuit_lock:
+            _retry_after = monotonic() + 30
+        logger.warning("Live graph read failed (%s).", exc.code if isinstance(exc, DriverError) else type(exc).__name__)
+        raise Neo4jConnectionError("Live Neo4j is temporarily unavailable. Please retry shortly.") from exc
+
+    latest_import = db.scalar(select(func.max(ImportRecord.finished_at)).where(
+        ImportRecord.user_id == user_id,
+        ImportRecord.status.in_(["completed", "partially_completed"])))
+    if not record or record.get("sync_status") != "ready":
+        return relational_overview(db, user_id, limit)
+    graph = serialize_neo4j(record, limit)
+    if not graph.nodes:
+        return relational_overview(db, user_id, limit)
+    if latest_import and (not graph.last_sync_at or graph.last_sync_at < latest_import):
+        # When graph is behind latest import, still return graph with note or sync status
+        pass
+    return graph
+
+
+def get_overview(db: Session, user_id: uuid.UUID, limit=50):
+    # The legacy SQL explorer remains explicitly labelled for installations without Neo4j.
+    return get_live_overview(db, user_id, limit) if settings.ENABLED else relational_overview(db, user_id, limit)
 
 
 def relational_overview(db, user_id, limit=50):
@@ -197,7 +242,8 @@ def relational_overview(db, user_id, limit=50):
             status=c.status,
             cadence=c.cadence,
             confidence_band=c.confidence_band,
-            category=c.category or (c.merchant.category if c.merchant else c.commitment_type),
+            category=c.merchant.category if c.merchant else c.commitment_type,
+            metadata={"currency": c.currency},
         )
         edge(user_id, c.id, "HAS_COMMITMENT")
         if c.merchant:
@@ -232,6 +278,7 @@ def relational_overview(db, user_id, limit=50):
                 Transaction.account_id,
                 Transaction.raw_descriptor,
                 Transaction.amount,
+                Transaction.currency,
                 Transaction.transaction_date,
                 Transaction.payment_channel,
                 Transaction.merchant_id,
@@ -257,6 +304,7 @@ def relational_overview(db, user_id, limit=50):
                 metadata={
                     "transaction_date": t.transaction_date.isoformat(),
                     "payment_channel": t.payment_channel,
+                    "currency": t.currency,
                 },
             )
             edge(t.commitment_id, t.id, "SUPPORTED_BY")
